@@ -436,6 +436,144 @@ def _upsert_publication(
     return publication
 
 
+def _data_url(mime_type: str, content: str) -> str:
+    encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _guide_spec(course: Course) -> dict:
+    return {
+        "title": f"{course.title} 导学任务",
+        "instructions": "先阅读课程目标、观察任务样例，再确认本节课的作品方向与评价标准。",
+        "teacher_tip": "导学任务不计自动分，但会帮助学生在进入交互练习和作品提交前建立任务框架。",
+        "stage_label": "活动 1",
+        "activity_type": "lesson_guide",
+        "deliverable": "阅读导学卡并记录本节课的创作方向。",
+        "prompt_starters": [
+            "请帮我概括这节课最重要的三个任务目标",
+            "如果要做一个班级作品，我应该先准备哪些素材",
+        ],
+        "component_whitelist": [],
+        "questions": [],
+    }
+
+
+def _project_spec(course: Course) -> dict:
+    return {
+        "title": f"{course.title} 作品提交与互评",
+        "instructions": "上传你的数字作品与设计说明，系统会把作品回流到课程目录，支持同伴互评与教师点评。",
+        "teacher_tip": "建议先看作品提交热力，再结合互评意见定位展示样例和讲评重点。",
+        "stage_label": "活动 3",
+        "activity_type": "project_submission",
+        "deliverable": "提交至少 1 个图片或文档附件，并附上 80 字左右的设计说明。",
+        "accepted_file_types": [
+            "image/png",
+            "image/jpeg",
+            "image/svg+xml",
+            "application/pdf",
+            "text/plain",
+        ],
+        "review_enabled": True,
+        "rubric_items": ["主题表达", "信息结构", "视觉呈现", "技术实现"],
+        "prompt_starters": [
+            "帮我检查这份作品说明是否清楚表达了设计思路",
+            "请提醒我互评时应该重点看哪些维度",
+        ],
+        "component_whitelist": [],
+        "questions": [],
+    }
+
+
+def _upsert_work_submission(
+    session: Session,
+    *,
+    activity_id: int,
+    publication_id: int | None,
+    student_id: int,
+    headline: str,
+    summary: str,
+    submitted_at: datetime,
+    assets: list[tuple[str, str, str]],
+) -> WorkSubmission:
+    submission = session.scalar(
+        select(WorkSubmission)
+        .where(WorkSubmission.activity_id == activity_id)
+        .where(WorkSubmission.student_id == student_id)
+        .limit(1)
+    )
+    if not submission:
+        submission = WorkSubmission(
+            activity_id=activity_id,
+            publication_id=publication_id,
+            student_id=student_id,
+            headline=headline,
+            summary=summary,
+            status="submitted",
+            submitted_at=submitted_at,
+            overall_score=None,
+        )
+        session.add(submission)
+        session.flush()
+    else:
+        submission.publication_id = publication_id
+        submission.headline = headline
+        submission.summary = summary
+        submission.status = "submitted"
+        submission.submitted_at = submitted_at
+
+    session.execute(delete(SubmissionAsset).where(SubmissionAsset.submission_id == submission.id))
+    for file_name, file_type, file_url in assets:
+        media_kind = "image" if file_type.startswith("image/") else "document"
+        session.add(
+            SubmissionAsset(
+                submission_id=submission.id,
+                file_name=file_name,
+                file_type=file_type,
+                media_kind=media_kind,
+                file_url=file_url,
+                preview_url=file_url if media_kind == "image" else None,
+                size_kb=32 if media_kind == "image" else 18,
+            )
+        )
+    return submission
+
+
+def _upsert_submission_review(
+    session: Session,
+    *,
+    submission_id: int,
+    reviewer_id: int,
+    reviewer_role: str,
+    score: float,
+    comment: str,
+    reviewed_at: datetime,
+    tags: list[str],
+):
+    review = session.scalar(
+        select(SubmissionReview)
+        .where(SubmissionReview.submission_id == submission_id)
+        .where(SubmissionReview.reviewer_id == reviewer_id)
+        .limit(1)
+    )
+    if not review:
+        review = SubmissionReview(
+            submission_id=submission_id,
+            reviewer_id=reviewer_id,
+            reviewer_role=reviewer_role,
+            score=score,
+            comment=comment,
+            tags_json=tags,
+            reviewed_at=reviewed_at,
+        )
+        session.add(review)
+    else:
+        review.reviewer_role = reviewer_role
+        review.score = score
+        review.comment = comment
+        review.tags_json = tags
+        review.reviewed_at = reviewed_at
+
+
 def _wrong_value(question: dict):
     correct_answer = question["correct_answer"]
     if isinstance(correct_answer, list):
