@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.security import hash_password
 from app.db.models import (
     Activity,
     ActivityPublication,
@@ -23,19 +24,25 @@ from app.db.models import (
 )
 from app.db.session import get_db
 from app.schemas.contracts import (
+    ActivityDocumentRequest,
     ActivityDraftRequest,
     ActivityDraftResponse,
     AnalyticsResponse,
     AssistantDescriptor,
     ChartPanel,
     ChartDatum,
+    ClassroomOption,
     CourseCreateRequest,
     CourseCreateResponse,
+    GeneratedDocumentResponse,
     LabSnapshot,
+    LiveSessionDescriptor,
     PendingItem,
     PublishRequest,
     PublishResponse,
     QuickStat,
+    StartClassRequest,
+    StartClassResponse,
     SubmissionReviewRequest,
     SubmissionReviewResponse,
     TeacherCourseDetailResponse,
@@ -47,6 +54,8 @@ from app.services.activity_tasks import (
     build_review_descriptor,
     build_submission_descriptor,
     latest_interactive_publication_for_course,
+    latest_publication_for_activity,
+    resolve_activity_spec,
 )
 from app.services.dashboard_data import (
     build_agent_cards,
@@ -72,6 +81,68 @@ def _get_primary_classroom(tenant_id: int, db: Session) -> Classroom | None:
         select(Classroom)
         .where(Classroom.tenant_id == tenant_id)
         .order_by(Classroom.id.asc())
+        .limit(1)
+    )
+
+
+def _resolve_classroom(tenant_id: int, classroom_id: int | None, db: Session) -> Classroom | None:
+    if classroom_id is not None:
+        classroom = db.scalar(
+            select(Classroom)
+            .where(Classroom.tenant_id == tenant_id)
+            .where(Classroom.id == classroom_id)
+            .limit(1)
+        )
+        if classroom:
+            return classroom
+    return _get_primary_classroom(tenant_id, db)
+
+
+def _classroom_options(tenant_id: int, db: Session) -> list[ClassroomOption]:
+    classrooms = db.scalars(
+        select(Classroom)
+        .where(Classroom.tenant_id == tenant_id)
+        .order_by(Classroom.grade.asc(), Classroom.class_no.asc(), Classroom.id.asc())
+    ).all()
+    return [
+        ClassroomOption(
+            id=classroom.id,
+            name=classroom.name,
+            school_year=classroom.school_year,
+            grade=classroom.grade,
+            class_no=classroom.class_no,
+            student_count=classroom.student_count,
+        )
+        for classroom in classrooms
+    ]
+
+
+def _live_session_descriptor(
+    live_session: LiveClassSession | None,
+    classroom: Classroom | None,
+    db: Session,
+) -> LiveSessionDescriptor | None:
+    if not classroom:
+        return None
+    course = db.get(Course, live_session.course_id) if live_session else None
+    return LiveSessionDescriptor(
+        id=live_session.id if live_session else None,
+        classroom_id=classroom.id,
+        classroom_label=classroom.name,
+        course_id=course.id if course else None,
+        course_title=course.title if course else None,
+        status=live_session.status if live_session else "idle",
+        view_mode=live_session.view_mode if live_session else "lab-grid",
+        ip_lock_enabled=live_session.ip_lock_enabled if live_session else False,
+        started_at=live_session.started_at if live_session else None,
+    )
+
+
+def _latest_live_session(classroom_id: int, db: Session) -> LiveClassSession | None:
+    return db.scalar(
+        select(LiveClassSession)
+        .where(LiveClassSession.classroom_id == classroom_id)
+        .order_by(LiveClassSession.id.desc())
         .limit(1)
     )
 
@@ -116,25 +187,36 @@ def _build_lab_snapshot(
     ).all()
 
     seats = []
-    for profile in profiles:
-        student = db.get(User, profile.user_id)
-        attempt = None
-        if publication:
-            attempt = db.scalar(
-                select(AssignmentAttempt)
-                .where(AssignmentAttempt.publication_id == publication.id)
-                .where(AssignmentAttempt.student_id == profile.user_id)
-                .order_by(AssignmentAttempt.id.desc())
-                .limit(1)
+    if profiles:
+        for profile in profiles:
+            student = db.get(User, profile.user_id)
+            attempt = None
+            if publication:
+                attempt = db.scalar(
+                    select(AssignmentAttempt)
+                    .where(AssignmentAttempt.publication_id == publication.id)
+                    .where(AssignmentAttempt.student_id == profile.user_id)
+                    .order_by(AssignmentAttempt.id.desc())
+                    .limit(1)
+                )
+            seats.append(
+                {
+                    "seat_no": profile.seat_no or 0,
+                    "student_name": student.display_name if student else profile.student_no,
+                    "status": _status_for_seat(profile.seat_no or 0, attempt),
+                    "score": attempt.auto_score if attempt and attempt.submitted_at else None,
+                }
             )
-        seats.append(
-            {
-                "seat_no": profile.seat_no or 0,
-                "student_name": student.display_name if student else profile.student_no,
-                "status": _status_for_seat(profile.seat_no or 0, attempt),
-                "score": attempt.auto_score if attempt and attempt.submitted_at else None,
-            }
-        )
+    else:
+        for seat_no in range(1, min(classroom.student_count, 8) + 1):
+            seats.append(
+                {
+                    "seat_no": seat_no,
+                    "student_name": f"机位 {seat_no:02d}",
+                    "status": "待签到" if seat_no % 2 else "空闲机位",
+                    "score": None,
+                }
+            )
 
     return LabSnapshot(
         classroom_id=classroom.id,
@@ -191,10 +273,133 @@ def _teacher_course_assistant(course: Course, db: Session) -> AssistantDescripto
     )
 
 
+def _activity_briefing_content(
+    *,
+    course: Course,
+    classroom: Classroom | None,
+    activity: Activity,
+    db: Session,
+) -> str:
+    descriptor = build_activity_task_descriptor(
+        activity,
+        db,
+        classroom_id=classroom.id if classroom else None,
+    )
+    top_submissions = descriptor.recent_submissions[:3]
+    lines = [
+        f"# {descriptor.title} 讲评摘要",
+        "",
+        f"- 课程：{course.title}",
+        f"- 班级：{classroom.name if classroom else '未绑定班级'}",
+        f"- 活动阶段：{descriptor.stage_label}",
+        f"- 任务类型：{descriptor.task_type_label}",
+        f"- 完成进度：{descriptor.submission_count}/{descriptor.submission_target or '--'}",
+        f"- 互评条数：{descriptor.review_count}",
+        f"- 待教师点评：{descriptor.pending_teacher_review_count}",
+        "",
+        "## 教师讲评重点",
+        f"- 活动说明：{descriptor.instructions}",
+    ]
+    if descriptor.teacher_tip:
+        lines.append(f"- 教师提示：{descriptor.teacher_tip}")
+    if descriptor.average_score is not None:
+        lines.append(f"- 交互作业平均分：{descriptor.average_score} 分")
+    if descriptor.average_review_score is not None:
+        lines.append(f"- 作品平均评价：{descriptor.average_review_score} 分")
+    if descriptor.rubric_items:
+        lines.append(f"- 评价维度：{'、'.join(descriptor.rubric_items)}")
+
+    lines.extend(["", "## 讲评建议", "- 先复盘任务目标，再展示优秀案例。"])
+    if descriptor.pending_teacher_review_count:
+        lines.append(f"- 当前还有 {descriptor.pending_teacher_review_count} 份作品未完成教师点评，建议优先补齐。")
+    if descriptor.review_count:
+        lines.append("- 可结合互评中高频出现的标签，提炼班级共性问题。")
+    if descriptor.spec and descriptor.spec.questions:
+        weak_questions = sorted(
+            descriptor.spec.questions,
+            key=lambda question: next(
+                (
+                    metric.accuracy
+                    for metric in build_analytics(descriptor.publication_id, db).question_metrics
+                    if metric.key == question.key
+                ),
+                1.0,
+            ),
+        )[:2] if descriptor.publication_id else []
+        if weak_questions:
+            lines.append(f"- 交互作业中可重点回看：{'、'.join(question.stem for question in weak_questions)}")
+
+    lines.extend(["", "## 优先展示作品"])
+    if top_submissions:
+        for index, submission in enumerate(top_submissions, start=1):
+            teacher_line = submission.teacher_review.comment if submission.teacher_review else "尚未教师点评"
+            lines.extend(
+                [
+                    f"{index}. {submission.student_name}《{submission.headline or '学生作品'}》",
+                    f"   - 简述：{submission.summary or '已提交作品。'}",
+                    f"   - 评价：{submission.average_review_score or '--'} 分，教师点评：{teacher_line}",
+                ]
+            )
+    else:
+        lines.append("- 当前活动暂无可展示作品。")
+
+    return "\n".join(lines)
+
+
+def _lesson_script_content(
+    *,
+    course: Course,
+    classroom: Classroom | None,
+    activity: Activity,
+    db: Session,
+) -> str:
+    descriptor = build_activity_task_descriptor(
+        activity,
+        db,
+        classroom_id=classroom.id if classroom else None,
+    )
+    showcase_submissions = descriptor.recent_submissions[:2]
+    lines = [
+        f"# {descriptor.title} 课堂讲评稿",
+        "",
+        "## 开场",
+        f"同学们，今天我们一起回看《{course.title}》中的“{descriptor.title}”。先对照任务目标，看看班级目前完成了 {descriptor.submission_count} 份作品。",
+        "",
+        "## 第一段：回顾任务目标",
+        f"请大家先重新读一遍任务要求：{descriptor.instructions}",
+    ]
+    if descriptor.rubric_items:
+        lines.append(f"本次我们重点从 {('、'.join(descriptor.rubric_items))} 这几个维度来看。")
+
+    lines.extend(["", "## 第二段：展示优秀作品"])
+    if showcase_submissions:
+        for submission in showcase_submissions:
+            lines.append(
+                f"- 请看 {submission.student_name} 的《{submission.headline or '学生作品'}》：{submission.summary or '这份作品完整呈现了任务要求。'}"
+            )
+            if submission.teacher_review:
+                lines.append(f"  教师点评：{submission.teacher_review.comment}")
+    else:
+        lines.append("- 当前还没有完成教师点评的优秀作品，可以先展示互评较高的作品。")
+
+    lines.extend(
+        [
+            "",
+            "## 第三段：班级共性提醒",
+            f"- 还有 {descriptor.pending_teacher_review_count} 份作品等待教师点评，说明部分同学还需要进一步完善表达。",
+            "- 讲评时先肯定亮点，再指出一条最值得改进的点，让同学知道下一步怎么做。",
+            "",
+            "## 结尾",
+            "请同学们根据讲评再完善一次自己的作品说明，并把今天学到的一个关键方法记到学习单中。",
+        ]
+    )
+    return "\n".join(lines)
+
+
 @router.get("/dashboard/{user_id}", response_model=TeacherDashboardResponse)
-def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
+def get_teacher_dashboard(user_id: int, classroom_id: int | None = None, db: Session = Depends(get_db)):
     user, tenant, profile = _get_teacher(user_id, db)
-    classroom = _get_primary_classroom(user.tenant_id, db)
+    classroom = _resolve_classroom(user.tenant_id, classroom_id, db)
     courses = db.scalars(
         select(Course)
         .where(Course.tenant_id == user.tenant_id)
@@ -202,16 +407,7 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
         .order_by(Course.lesson_no.asc(), Course.id.asc())
     ).all()
     current_course_id = courses[0].id if courses else None
-    live_session = (
-        db.scalar(
-            select(LiveClassSession)
-            .where(LiveClassSession.classroom_id == classroom.id)
-            .order_by(LiveClassSession.id.desc())
-            .limit(1)
-        )
-        if classroom
-        else None
-    )
+    live_session = _latest_live_session(classroom.id, db) if classroom else None
     if live_session:
         current_course_id = live_session.course_id
 
@@ -309,6 +505,8 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
         tenant_name=tenant.name,
         subject=profile.subject if profile else "信息科技",
         classroom_label=classroom.name if classroom else "未绑定班级",
+        current_classroom_id=classroom.id if classroom else None,
+        classroom_options=_classroom_options(user.tenant_id, db),
         quick_stats=[
             QuickStat(title="课程目录", value=str(len(course_cards)), hint="支持按课程进入作业预览与分析"),
             QuickStat(title="当前机房", value=lab_snapshot.classroom_label, hint="保留机房视图、IP 锁定与班级密码"),
@@ -316,6 +514,7 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
             QuickStat(title="待点评作品", value=str(pending_teacher_review_count), hint="教师点评后会同步更新作品展示与互评热度"),
         ],
         lab_snapshot=lab_snapshot,
+        active_session=_live_session_descriptor(live_session, classroom, db),
         course_directory=course_cards,
         pending_items=pending_items,
         charts=charts,
@@ -324,12 +523,12 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/courses/{course_id}", response_model=TeacherCourseDetailResponse)
-def get_teacher_course_detail(course_id: int, db: Session = Depends(get_db)):
+def get_teacher_course_detail(course_id: int, classroom_id: int | None = None, db: Session = Depends(get_db)):
     course = db.get(Course, course_id)
     if not course or not course.is_published:
         raise HTTPException(status_code=404, detail="课程不存在。")
 
-    classroom = _get_primary_classroom(course.tenant_id, db)
+    classroom = _resolve_classroom(course.tenant_id, classroom_id, db)
     course_card = build_teacher_course_card(course, db, classroom.id if classroom else None)
     preview, spec, publication = build_assignment_preview(course.id, db, classroom.id if classroom else None)
     analytics = build_analytics(publication.id, db) if publication else None
@@ -487,6 +686,8 @@ def get_teacher_course_detail(course_id: int, db: Session = Depends(get_db)):
 
     return TeacherCourseDetailResponse(
         course=course_card,
+        classroom_id=classroom.id if classroom else None,
+        classroom_label=classroom.name if classroom else None,
         featured_activity_id=featured_activity.id if featured_activity else None,
         assignment_preview=preview,
         latest_spec=spec,
@@ -637,6 +838,108 @@ def publish_revision(payload: PublishRequest, db: Session = Depends(get_db)):
         revision_id=revision.id,
         classroom_id=classroom.id,
         status=publication.status,
+    )
+
+
+@router.post("/live-sessions/start", response_model=StartClassResponse)
+def start_live_session(payload: StartClassRequest, db: Session = Depends(get_db)):
+    teacher, _, _ = _get_teacher(payload.teacher_user_id, db)
+    classroom = db.scalar(
+        select(Classroom)
+        .where(Classroom.tenant_id == teacher.tenant_id)
+        .where(Classroom.id == payload.classroom_id)
+        .limit(1)
+    )
+    course = db.get(Course, payload.course_id)
+    if not classroom or not course or course.tenant_id != teacher.tenant_id:
+        raise HTTPException(status_code=404, detail="班级或课程不存在。")
+
+    session = _latest_live_session(classroom.id, db)
+    if not session:
+        session = LiveClassSession(
+            tenant_id=teacher.tenant_id,
+            classroom_id=classroom.id,
+            course_id=course.id,
+            status="active",
+            view_mode=payload.view_mode,
+            ip_lock_enabled=payload.ip_lock_enabled,
+            class_password_hash=hash_password(payload.class_password) if payload.class_password else None,
+            signed_in_count=0,
+            submitted_count=0,
+            pending_review_count=0,
+        )
+        db.add(session)
+        db.flush()
+    else:
+        session.tenant_id = teacher.tenant_id
+        session.classroom_id = classroom.id
+        session.course_id = course.id
+        session.status = "active"
+        session.view_mode = payload.view_mode
+        session.ip_lock_enabled = payload.ip_lock_enabled
+        session.class_password_hash = hash_password(payload.class_password) if payload.class_password else None
+        session.started_at = datetime.now(UTC)
+        session.ended_at = None
+
+    db.commit()
+    db.refresh(session)
+    return StartClassResponse(
+        session=_live_session_descriptor(session, classroom, db) or LiveSessionDescriptor(
+            classroom_id=classroom.id,
+            classroom_label=classroom.name,
+            course_id=course.id,
+            course_title=course.title,
+            status="active",
+            view_mode=payload.view_mode,
+            ip_lock_enabled=payload.ip_lock_enabled,
+        ),
+        message=f"已为 {classroom.name} 开启《{course.title}》课堂。",
+    )
+
+
+@router.post("/activities/{activity_id}/briefing-summary", response_model=GeneratedDocumentResponse)
+def export_activity_briefing_summary(
+    activity_id: int,
+    payload: ActivityDocumentRequest,
+    db: Session = Depends(get_db),
+):
+    teacher, _, _ = _get_teacher(payload.teacher_user_id, db)
+    activity = db.get(Activity, activity_id)
+    if not activity:
+        raise HTTPException(status_code=404, detail="活动不存在。")
+    course = db.get(Course, activity.course_id)
+    if not course or course.tenant_id != teacher.tenant_id:
+        raise HTTPException(status_code=404, detail="课程不存在。")
+    classroom = _resolve_classroom(teacher.tenant_id, payload.classroom_id, db)
+    title = f"{course.title} - {activity.title} 讲评摘要"
+    return GeneratedDocumentResponse(
+        activity_id=activity.id,
+        title=title,
+        suggested_filename=f"{course.lesson_no.lower()}-activity-{activity.id}-briefing.md",
+        content=_activity_briefing_content(course=course, classroom=classroom, activity=activity, db=db),
+    )
+
+
+@router.post("/activities/{activity_id}/lesson-script", response_model=GeneratedDocumentResponse)
+def generate_activity_lesson_script(
+    activity_id: int,
+    payload: ActivityDocumentRequest,
+    db: Session = Depends(get_db),
+):
+    teacher, _, _ = _get_teacher(payload.teacher_user_id, db)
+    activity = db.get(Activity, activity_id)
+    if not activity:
+        raise HTTPException(status_code=404, detail="活动不存在。")
+    course = db.get(Course, activity.course_id)
+    if not course or course.tenant_id != teacher.tenant_id:
+        raise HTTPException(status_code=404, detail="课程不存在。")
+    classroom = _resolve_classroom(teacher.tenant_id, payload.classroom_id, db)
+    title = f"{course.title} - {activity.title} 课堂讲评稿"
+    return GeneratedDocumentResponse(
+        activity_id=activity.id,
+        title=title,
+        suggested_filename=f"{course.lesson_no.lower()}-activity-{activity.id}-script.md",
+        content=_lesson_script_content(course=course, classroom=classroom, activity=activity, db=db),
     )
 
 

@@ -157,6 +157,27 @@ export interface LabSnapshot {
   seats: ClassroomSeat[];
 }
 
+export interface ClassroomOption {
+  id: number;
+  name: string;
+  school_year: string;
+  grade: string;
+  class_no: string;
+  student_count: number;
+}
+
+export interface LiveSessionDescriptor {
+  id: number | null;
+  classroom_id: number;
+  classroom_label: string;
+  course_id: number | null;
+  course_title: string | null;
+  status: string;
+  view_mode: string;
+  ip_lock_enabled: boolean;
+  started_at: string | null;
+}
+
 export interface TeacherCourseCard {
   id: number;
   title: string;
@@ -262,8 +283,11 @@ export interface TeacherDashboardResponse {
   tenant_name: string;
   subject: string;
   classroom_label: string;
+  current_classroom_id: number | null;
+  classroom_options: ClassroomOption[];
   quick_stats: QuickStat[];
   lab_snapshot: LabSnapshot;
+  active_session: LiveSessionDescriptor | null;
   course_directory: TeacherCourseCard[];
   pending_items: PendingItem[];
   charts: ChartPanel[];
@@ -272,6 +296,8 @@ export interface TeacherDashboardResponse {
 
 export interface TeacherCourseDetailResponse {
   course: TeacherCourseCard;
+  classroom_id: number | null;
+  classroom_label: string | null;
   featured_activity_id: number | null;
   assignment_preview: AssignmentPreview | null;
   latest_spec: ActivitySpec | null;
@@ -301,6 +327,19 @@ export interface PublishResponse {
   revision_id: number;
   classroom_id: number;
   status: string;
+}
+
+export interface StartClassResponse {
+  session: LiveSessionDescriptor;
+  message: string;
+}
+
+export interface GeneratedDocumentResponse {
+  activity_id: number;
+  title: string;
+  suggested_filename: string;
+  mime_type: string;
+  content: string;
 }
 
 export interface FeedbackItem {

@@ -13,12 +13,19 @@
         <p class="panel-kicker">{{ dashboard.tenant_name }}</p>
         <h2>{{ dashboard.teacher_name }} · {{ dashboard.classroom_label }}</h2>
         <p class="hero-copy">
-          教师首页聚合机房状态、课程目录、生成课程和图表分析。进入课程目录后，再按活动任务查看交互作业、作品提交、互评回流和 AI 活动工坊。
+          教师端围绕“选班开课、课程目录、活动任务、作品讲评”组织信息。机房状态保留在首页，课程相关的预览、分析、
+          作品点评与讲评文档收束到课程目录中，便于课堂内快速切换。
         </p>
       </div>
-      <div class="hero-actions">
-        <el-button round @click="generalAssistantOpen = true">通用智能体</el-button>
-        <el-button type="primary" round @click="createCourseDialog = true">生成课程</el-button>
+      <div class="workspace-hero__panel">
+        <div class="theme-switcher theme-switcher--wide">
+          <span class="theme-switcher__label">当前聚焦班级</span>
+          <strong>{{ selectedClassroom?.name ?? dashboard.classroom_label }}</strong>
+        </div>
+        <div class="hero-actions">
+          <el-button round @click="generalAssistantOpen = true">通用智能体</el-button>
+          <el-button type="primary" round @click="createCourseDialog = true">生成课程</el-button>
+        </div>
       </div>
     </section>
 
@@ -35,13 +42,115 @@
     <el-tabs v-model="activeTab" class="workspace-tabs">
       <el-tab-pane label="工作台总览" name="overview">
         <div class="workspace-grid workspace-grid--teacher-overview">
-          <SectionCard eyebrow="机房态势" title="当前机房状态">
+          <SectionCard eyebrow="开课控制" title="按班级开启上课">
+            <div class="classroom-control-grid">
+              <div class="control-panel">
+                <div class="theme-switcher theme-switcher--wide">
+                  <span class="theme-switcher__label">查看班级</span>
+                  <el-select
+                    v-model="selectedClassroomId"
+                    class="theme-switcher__select"
+                    @change="handleClassroomChange"
+                  >
+                    <el-option
+                      v-for="item in dashboard.classroom_options"
+                      :key="item.id"
+                      :label="`${item.name} · ${item.student_count}人`"
+                      :value="item.id"
+                    />
+                  </el-select>
+                </div>
+
+                <div class="control-panel__meta">
+                  <div class="mini-stat-card">
+                    <span>学年</span>
+                    <strong>{{ selectedClassroom?.school_year ?? '--' }}</strong>
+                  </div>
+                  <div class="mini-stat-card">
+                    <span>年级/班号</span>
+                    <strong>{{ selectedClassroom ? `${selectedClassroom.grade} ${selectedClassroom.class_no}班` : '--' }}</strong>
+                  </div>
+                  <div class="mini-stat-card">
+                    <span>班级人数</span>
+                    <strong>{{ selectedClassroom?.student_count ?? 0 }}</strong>
+                  </div>
+                </div>
+
+                <div class="live-session-card">
+                  <div class="live-session-card__head">
+                    <div>
+                      <p class="panel-kicker">当前课堂</p>
+                      <strong>{{ dashboard.active_session?.course_title ?? '尚未开启课堂' }}</strong>
+                    </div>
+                    <el-tag round :type="dashboard.active_session ? 'success' : 'info'">
+                      {{ dashboard.active_session?.status ?? 'idle' }}
+                    </el-tag>
+                  </div>
+                  <div class="metric-inline metric-inline--strong">
+                    <span>展示视图 {{ displayModeLabel(dashboard.active_session?.view_mode ?? 'lab-grid') }}</span>
+                    <span>IP 锁定 {{ dashboard.active_session?.ip_lock_enabled ? '已启用' : '未启用' }}</span>
+                    <span>开始时间 {{ formatDateTime(dashboard.active_session?.started_at ?? null) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="control-panel">
+                <p class="panel-kicker">开课设置</p>
+                <el-form label-position="top" class="class-start-form">
+                  <el-form-item label="上课班级">
+                    <el-select v-model="startClassForm.classroom_id" class="fill-button">
+                      <el-option
+                        v-for="item in dashboard.classroom_options"
+                        :key="item.id"
+                        :label="item.name"
+                        :value="item.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="关联课程">
+                    <el-select v-model="startClassForm.course_id" class="fill-button">
+                      <el-option
+                        v-for="course in dashboard.course_directory"
+                        :key="course.id"
+                        :label="`${course.lesson_no} · ${course.title}`"
+                        :value="course.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="课堂视图">
+                    <el-radio-group v-model="startClassForm.view_mode" class="class-view-group">
+                      <el-radio-button v-for="item in classViewModes" :key="item.value" :label="item.value">
+                        {{ item.label }}
+                      </el-radio-button>
+                    </el-radio-group>
+                  </el-form-item>
+                  <el-form-item label="班级密码">
+                    <el-input
+                      v-model="startClassForm.class_password"
+                      placeholder="选填，可用于机房统一入场"
+                    />
+                  </el-form-item>
+                  <div class="class-start-form__footer">
+                    <el-switch v-model="startClassForm.ip_lock_enabled" active-text="开启 IP 锁定" />
+                    <el-button
+                      type="primary"
+                      :loading="startClassLoading"
+                      :disabled="!startClassForm.classroom_id || !startClassForm.course_id"
+                      @click="handleStartClass"
+                    >
+                      选择班级并开启上课
+                    </el-button>
+                  </div>
+                </el-form>
+              </div>
+            </div>
+
             <div class="lab-board">
               <div class="lab-summary-column">
                 <div class="lab-summary-grid">
                   <div class="status-tile">
                     <span>课堂视图</span>
-                    <strong>{{ dashboard.lab_snapshot.view_mode }}</strong>
+                    <strong>{{ displayModeLabel(dashboard.lab_snapshot.view_mode) }}</strong>
                   </div>
                   <div class="status-tile">
                     <span>签到人数</span>
@@ -57,32 +166,34 @@
                   </div>
                   <div class="status-tile">
                     <span>IP 锁定</span>
-                    <strong>{{ dashboard.lab_snapshot.ip_lock_enabled ? "已开启" : "未开启" }}</strong>
+                    <strong>{{ dashboard.lab_snapshot.ip_lock_enabled ? '已启用' : '未启用' }}</strong>
                   </div>
                   <div class="status-tile">
                     <span>班级密码</span>
-                    <strong>{{ dashboard.lab_snapshot.class_password_enabled ? "已启用" : "未启用" }}</strong>
+                    <strong>{{ dashboard.lab_snapshot.class_password_enabled ? '已启用' : '未启用' }}</strong>
                   </div>
                 </div>
                 <div class="lab-brief">
-                  <p class="panel-kicker">课堂控制</p>
+                  <p class="panel-kicker">机房说明</p>
                   <p class="panel-note">
-                    平台保留机房视图、IP 锁定和班级密码等老站特性，同时把作答、作品上传、互评和教师复核汇总到同一个教学闭环。
+                    这里保留旧站的机房特性，包括 IP 锁定、班级密码、机房视图与课堂实时状态，同时把 AI 作业、作品上传、
+                    互评和教师点评汇总进同一课堂闭环。
                   </p>
                 </div>
               </div>
+
               <div class="seat-grid">
                 <div v-for="seat in dashboard.lab_snapshot.seats" :key="seat.seat_no" class="seat-card">
-                  <span class="seat-card__index">#{{ seat.seat_no.toString().padStart(2, "0") }}</span>
+                  <span class="seat-card__index">#{{ seat.seat_no.toString().padStart(2, '0') }}</span>
                   <strong>{{ seat.student_name }}</strong>
                   <el-tag size="small" round>{{ seat.status }}</el-tag>
-                  <p class="panel-note">{{ seat.score != null ? `${seat.score} 分` : "等待课堂任务" }}</p>
+                  <p class="panel-note">{{ seat.score != null ? `${seat.score} 分` : '等待课堂任务推进' }}</p>
                 </div>
               </div>
             </div>
           </SectionCard>
 
-          <SectionCard eyebrow="课程目录" title="当前课程列表">
+          <SectionCard eyebrow="课程目录" title="当前班级课程列表">
             <div class="course-list">
               <button
                 v-for="course in dashboard.course_directory"
@@ -90,7 +201,7 @@
                 type="button"
                 class="course-list-card"
                 :class="{ 'course-list-card--active': selectedCourseId === course.id }"
-                @click="selectCourse(course.id)"
+                @click="handleSelectCourse(course.id)"
               >
                 <div class="course-list-card__head">
                   <strong>{{ course.title }}</strong>
@@ -100,7 +211,7 @@
                 <div class="metric-inline">
                   <span>均分 {{ course.average_score }}</span>
                   <span>提交率 {{ course.submission_rate }}%</span>
-                  <span>{{ course.agent_enabled ? "已绑定课程智能体" : "未绑定课程智能体" }}</span>
+                  <span>{{ course.agent_enabled ? '已绑定课程智能体' : '未绑定课程智能体' }}</span>
                 </div>
               </button>
             </div>
@@ -134,6 +245,7 @@
                 <p class="panel-kicker">课程列表</p>
                 <h3>课程目录</h3>
               </div>
+              <el-tag round effect="plain">{{ selectedClassroom?.name ?? dashboard.classroom_label }}</el-tag>
             </div>
             <div class="course-list">
               <button
@@ -142,7 +254,7 @@
                 type="button"
                 class="course-list-card"
                 :class="{ 'course-list-card--active': selectedCourseId === course.id }"
-                @click="selectCourse(course.id)"
+                @click="handleSelectCourse(course.id)"
               >
                 <div class="course-list-card__head">
                   <strong>{{ course.title }}</strong>
@@ -160,7 +272,8 @@
                   <p class="panel-kicker">{{ courseDetail.course.lesson_no }}</p>
                   <h3>{{ courseDetail.course.title }}</h3>
                   <p class="panel-note">
-                    {{ courseDetail.course.subject }} · {{ courseDetail.course.term }} · 最近更新 {{ formatDateTime(courseDetail.course.last_updated) }}
+                    {{ courseDetail.course.subject }} · {{ courseDetail.course.term }} · {{ courseDetail.classroom_label ?? dashboard.classroom_label }}
+                    · 最近更新 {{ formatDateTime(courseDetail.course.last_updated) }}
                   </p>
                 </div>
                 <div class="hero-actions">
@@ -183,7 +296,7 @@
                   </div>
                   <p class="panel-note">{{ featuredActivity.instructions }}</p>
                   <div class="metric-inline metric-inline--strong">
-                    <span>完成 {{ featuredActivity.submission_count }}/{{ featuredActivity.submission_target || "--" }}</span>
+                    <span>完成 {{ featuredActivity.submission_count }}/{{ featuredActivity.submission_target || '--' }}</span>
                     <span>评价 {{ featuredActivity.review_count }}</span>
                     <span v-if="featuredActivity.average_score != null">自动均分 {{ featuredActivity.average_score }}</span>
                     <span v-if="featuredActivity.average_review_score != null">互评均分 {{ featuredActivity.average_review_score }}</span>
@@ -206,16 +319,35 @@
                                 <el-tag round>{{ activity.task_type_label }}</el-tag>
                               </div>
                             </div>
-                            <el-tag round effect="plain">{{ activity.status }}</el-tag>
+                            <div class="hero-actions">
+                              <el-button
+                                size="small"
+                                round
+                                :loading="documentLoadingKey === `briefing-${activity.id}`"
+                                @click="handleGenerateDocument(activity, 'briefing')"
+                              >
+                                按活动导出讲评摘要
+                              </el-button>
+                              <el-button
+                                size="small"
+                                type="primary"
+                                round
+                                :loading="documentLoadingKey === `lesson-${activity.id}`"
+                                @click="handleGenerateDocument(activity, 'lesson')"
+                              >
+                                优秀作品一键生成课堂讲评稿
+                              </el-button>
+                              <el-tag round effect="plain">{{ activity.status }}</el-tag>
+                            </div>
                           </div>
 
                           <p class="panel-note">{{ activity.instructions }}</p>
 
                           <div class="tag-row" v-if="activity.deliverable || activity.due_at">
-                            <el-tag v-if="activity.deliverable" round effect="plain">成果：{{ activity.deliverable }}</el-tag>
-                            <el-tag v-if="activity.due_at" round effect="plain">截止：{{ formatDateTime(activity.due_at) }}</el-tag>
-                            <el-tag round effect="plain">完成 {{ activity.submission_count }}/{{ activity.submission_target || "--" }}</el-tag>
-                            <el-tag v-if="activity.review_enabled" round effect="plain">互评 {{ activity.review_count }}</el-tag>
+                            <el-tag v-if="activity.deliverable" round effect="plain">{{ `成果：${activity.deliverable}` }}</el-tag>
+                            <el-tag v-if="activity.due_at" round effect="plain">{{ `截止：${formatDateTime(activity.due_at)}` }}</el-tag>
+                            <el-tag round effect="plain">{{ `完成 ${activity.submission_count}/${activity.submission_target || '--'}` }}</el-tag>
+                            <el-tag v-if="activity.review_enabled" round effect="plain">{{ `互评 ${activity.review_count}` }}</el-tag>
                           </div>
 
                           <div class="activity-metric-grid">
@@ -229,11 +361,11 @@
                             </div>
                             <div class="mini-stat-card">
                               <span>自动均分</span>
-                              <strong>{{ activity.average_score ?? "--" }}</strong>
+                              <strong>{{ activity.average_score ?? '--' }}</strong>
                             </div>
                             <div class="mini-stat-card">
                               <span>评价均分</span>
-                              <strong>{{ activity.average_review_score ?? "--" }}</strong>
+                              <strong>{{ activity.average_review_score ?? '--' }}</strong>
                             </div>
                           </div>
 
@@ -253,9 +385,11 @@
                             <div v-for="question in activity.spec.questions" :key="question.key" class="question-preview-item">
                               <div class="question-preview-item__head">
                                 <strong>{{ question.stem }}</strong>
-                                <el-tag type="warning" effect="plain" round>{{ question.points }} 分</el-tag>
+                                <el-tag type="warning" effect="plain" round>{{ `${question.points} 分` }}</el-tag>
                               </div>
-                              <p class="panel-note">{{ question.type }} · {{ question.options.join(" / ") || "开放回答" }}</p>
+                              <p class="panel-note">
+                                {{ question.type }} · {{ question.options.length ? question.options.join(' / ') : '开放回答' }}
+                              </p>
                             </div>
                           </div>
 
@@ -269,24 +403,35 @@
 
                             <div v-if="activity.rubric_items.length" class="tag-row">
                               <el-tag v-for="item in activity.rubric_items" :key="item" round>{{ item }}</el-tag>
-                              <el-tag round effect="plain">待教师点评 {{ activity.pending_teacher_review_count }}</el-tag>
+                              <el-tag round effect="plain">{{ `待教师点评 ${activity.pending_teacher_review_count}` }}</el-tag>
                             </div>
 
-                            <div class="submission-grid" v-if="activity.recent_submissions.length">
+                            <div v-if="activity.recent_submissions.length" class="submission-grid">
                               <article v-for="submission in activity.recent_submissions" :key="submission.id" class="submission-card">
                                 <div class="submission-card__head">
                                   <div>
-                                    <strong>{{ submission.headline || "学生作品" }}</strong>
+                                    <strong>{{ submission.headline || '学生作品' }}</strong>
                                     <p class="panel-note">{{ submission.student_name }} · {{ formatDateTime(submission.submitted_at) }}</p>
                                   </div>
                                   <el-tag round effect="plain">
-                                    {{ submission.average_review_score != null ? `${submission.average_review_score} 分` : `${submission.review_count} 条评价` }}
+                                    {{
+                                      submission.average_review_score != null
+                                        ? `${submission.average_review_score} 分`
+                                        : `${submission.review_count} 条评价`
+                                    }}
                                   </el-tag>
                                 </div>
+
                                 <div v-if="submission.preview_asset_url" class="submission-preview-frame">
-                                  <img class="submission-preview-image" :src="submission.preview_asset_url" :alt="submission.headline || '学生作品预览'" />
+                                  <img
+                                    class="submission-preview-image"
+                                    :src="submission.preview_asset_url"
+                                    :alt="submission.headline || '学生作品预览'"
+                                  />
                                 </div>
-                                <p class="panel-note">{{ submission.summary || "学生已提交作品，等待进一步评价。" }}</p>
+
+                                <p class="panel-note">{{ submission.summary || '学生已提交作品，等待进一步评价。' }}</p>
+
                                 <div class="submission-asset-list">
                                   <a
                                     v-for="asset in submission.assets"
@@ -300,22 +445,26 @@
                                     <small>{{ asset.media_kind }}</small>
                                   </a>
                                 </div>
+
                                 <div class="tag-row">
                                   <el-tag round :type="submission.teacher_reviewed ? 'success' : 'warning'">
-                                    {{ submission.teacher_reviewed ? "已完成教师点评" : "待教师点评" }}
+                                    {{ submission.teacher_reviewed ? '已完成教师点评' : '待教师点评' }}
                                   </el-tag>
-                                  <el-tag round effect="plain">同伴互评 {{ submission.peer_review_count }}</el-tag>
+                                  <el-tag round effect="plain">{{ `同伴互评 ${submission.peer_review_count}` }}</el-tag>
                                 </div>
+
                                 <div v-if="submission.teacher_review" class="review-note review-note--teacher">
-                                  <strong>教师点评 · {{ submission.teacher_review.score }} 分</strong>
+                                  <strong>{{ `教师点评 · ${submission.teacher_review.score} 分` }}</strong>
                                   <p>{{ submission.teacher_review.comment }}</p>
                                 </div>
+
                                 <div v-if="submission.reviews.length" class="review-note-list">
                                   <div v-for="review in submission.reviews" :key="review.id" class="review-note">
-                                    <strong>{{ review.reviewer_name }} · {{ review.score }} 分</strong>
+                                    <strong>{{ `${review.reviewer_name} · ${review.score} 分` }}</strong>
                                     <p>{{ review.comment }}</p>
                                   </div>
                                 </div>
+
                                 <el-form label-position="top" class="review-form review-form--teacher">
                                   <el-form-item label="教师评分">
                                     <el-slider
@@ -331,16 +480,12 @@
                                       v-model="ensureTeacherReviewForm(submission).comment"
                                       type="textarea"
                                       :rows="3"
-                                      placeholder="补充教师点评，帮助学生复盘和展示优秀案例"
+                                      placeholder="补充教师点评，帮助学生复盘并沉淀展示案例"
                                     />
                                   </el-form-item>
                                   <el-form-item label="点评标签">
                                     <el-checkbox-group v-model="ensureTeacherReviewForm(submission).tags">
-                                      <el-checkbox
-                                        v-for="item in activity.rubric_items"
-                                        :key="item"
-                                        :label="item"
-                                      >
+                                      <el-checkbox v-for="item in activity.rubric_items" :key="item" :label="item">
                                         {{ item }}
                                       </el-checkbox>
                                     </el-checkbox-group>
@@ -351,7 +496,7 @@
                                       :loading="submittingReviewId === submission.id"
                                       @click="handleSubmitTeacherReview(submission.id)"
                                     >
-                                      {{ submission.teacher_reviewed ? "更新教师点评" : "提交教师点评" }}
+                                      {{ submission.teacher_reviewed ? '更新教师点评' : '提交教师点评' }}
                                     </el-button>
                                   </div>
                                 </el-form>
@@ -363,7 +508,6 @@
                     </SectionCard>
                   </div>
                 </el-tab-pane>
-
                 <el-tab-pane label="课程分析" name="analytics">
                   <div class="detail-stack">
                     <SectionCard eyebrow="分析概览" title="活动与作业分析">
@@ -374,7 +518,7 @@
                         </div>
                         <div class="analytics-tile">
                           <span>最新交互作业均分</span>
-                          <strong>{{ courseDetail.analytics?.average_score ?? "--" }}</strong>
+                          <strong>{{ courseDetail.analytics?.average_score ?? '--' }}</strong>
                         </div>
                         <div class="analytics-tile">
                           <span>最近提交回流</span>
@@ -407,17 +551,24 @@
                         <article v-for="submission in showcaseSubmissions" :key="submission.id" class="submission-card">
                           <div class="submission-card__head">
                             <div>
-                              <strong>{{ submission.headline || "学生作品" }}</strong>
+                              <strong>{{ submission.headline || '学生作品' }}</strong>
                               <p class="panel-note">{{ submission.student_name }} · {{ formatDateTime(submission.submitted_at) }}</p>
                             </div>
                             <el-tag round :type="submission.teacher_reviewed ? 'success' : 'warning'">
-                              {{ submission.teacher_reviewed ? "已点评" : "待点评" }}
+                              {{ submission.teacher_reviewed ? '已点评' : '待点评' }}
                             </el-tag>
                           </div>
-                          <div v-if="submission.preview_asset_url" class="submission-preview-frame submission-preview-frame--showcase">
-                            <img class="submission-preview-image" :src="submission.preview_asset_url" :alt="submission.headline || '作品展示'" />
+                          <div
+                            v-if="submission.preview_asset_url"
+                            class="submission-preview-frame submission-preview-frame--showcase"
+                          >
+                            <img
+                              class="submission-preview-image"
+                              :src="submission.preview_asset_url"
+                              :alt="submission.headline || '作品展示'"
+                            />
                           </div>
-                          <p class="panel-note">{{ submission.summary || "课程作品展示" }}</p>
+                          <p class="panel-note">{{ submission.summary || '课程作品展示' }}</p>
                         </article>
                       </div>
                     </SectionCard>
@@ -437,7 +588,7 @@
                         <el-form-item label="参考资料">
                           <el-input
                             v-model="resourceNames"
-                            placeholder="教材页、PPT、案例截图，使用中文逗号分隔"
+                            placeholder="教材页、PPT、案例截图，使用逗号分隔"
                           />
                         </el-form-item>
                         <el-form-item label="题型白名单">
@@ -450,6 +601,9 @@
                               {{ component }}
                             </el-checkbox>
                           </el-checkbox-group>
+                        </el-form-item>
+                        <el-form-item label="发布到班级">
+                          <el-tag round effect="plain">{{ selectedClassroom?.name ?? dashboard.classroom_label }}</el-tag>
                         </el-form-item>
                         <el-form-item label="截止时间">
                           <el-date-picker
@@ -472,7 +626,7 @@
                       <p v-if="draftHint" class="status-text">{{ draftHint }}</p>
                     </SectionCard>
 
-                    <SectionCard eyebrow="草案预览" title="最新生成结果">
+                    <SectionCard eyebrow="草稿预览" title="最新生成结果">
                       <template v-if="generatedDraft">
                         <div class="preview-summary">
                           <div>
@@ -495,20 +649,24 @@
                           <div v-for="question in generatedDraft.spec.questions" :key="question.key" class="question-preview-item">
                             <div class="question-preview-item__head">
                               <strong>{{ question.stem }}</strong>
-                              <el-tag type="warning" effect="plain" round>{{ question.points }} 分</el-tag>
+                              <el-tag type="warning" effect="plain" round>{{ `${question.points} 分` }}</el-tag>
                             </div>
-                            <p class="panel-note">{{ question.type }} · {{ question.options.join(" / ") || "开放回答" }}</p>
+                            <p class="panel-note">
+                              {{ question.type }} · {{ question.options.length ? question.options.join(' / ') : '开放回答' }}
+                            </p>
                           </div>
                         </div>
                       </template>
                       <p v-else class="panel-note">
-                        生成后会在这里展示结构化活动草案，教师确认后再发布到课程活动流中。
+                        生成后会在这里展示结构化活动草稿。教师确认后即可按当前班级发布，并在课程目录中继续查看数据回流。
                       </p>
                     </SectionCard>
                   </div>
                 </el-tab-pane>
               </el-tabs>
             </template>
+
+            <el-empty v-else description="请选择课程查看详情" />
           </section>
         </div>
       </el-tab-pane>
@@ -560,6 +718,22 @@
         </div>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="documentPreview.visible" :title="documentPreview.title" width="760px">
+      <div class="document-preview">
+        <div class="document-preview__meta">
+          <el-tag round effect="plain">{{ documentPreview.activityTitle || '活动讲评文档' }}</el-tag>
+          <el-tag round>{{ documentPreview.filename }}</el-tag>
+        </div>
+        <pre class="document-preview__content">{{ documentPreview.content }}</pre>
+      </div>
+      <template #footer>
+        <div class="dialog-actions">
+          <el-button @click="documentPreview.visible = false">关闭</el-button>
+          <el-button type="primary" @click="downloadGeneratedDocument">下载 Markdown</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -577,10 +751,17 @@ import { useSessionStore } from "../stores/session";
 import type {
   ActivityDraftResponse,
   ActivityTaskDescriptor,
+  GeneratedDocumentResponse,
   SubmissionDescriptor,
   TeacherCourseDetailResponse,
   TeacherDashboardResponse,
 } from "../types/contracts";
+
+const classViewModes = [
+  { value: "lab-grid", label: "机房视图" },
+  { value: "activity-focus", label: "活动聚焦" },
+  { value: "showcase", label: "作品展示" },
+];
 
 const router = useRouter();
 const session = useSessionStore();
@@ -588,6 +769,7 @@ const session = useSessionStore();
 const dashboard = ref<TeacherDashboardResponse | null>(null);
 const courseDetail = ref<TeacherCourseDetailResponse | null>(null);
 const selectedCourseId = ref<number | null>(null);
+const selectedClassroomId = ref<number | null>(null);
 const activeTab = ref("overview");
 const courseTab = ref("activities");
 const generalAssistantOpen = ref(false);
@@ -595,7 +777,9 @@ const courseAssistantOpen = ref(false);
 const courseLoading = ref(false);
 const draftLoading = ref(false);
 const publishLoading = ref(false);
+const startClassLoading = ref(false);
 const submittingReviewId = ref<number | null>(null);
+const documentLoadingKey = ref<string | null>(null);
 const createCourseDialog = ref(false);
 const createCourseLoading = ref(false);
 const generatedDraft = ref<ActivityDraftResponse | null>(null);
@@ -603,20 +787,40 @@ const generatedDraftCourseId = ref<number | null>(null);
 const publishDueAt = ref<string | null>(null);
 const draftHint = ref("");
 const teacherReviewForms = reactive<Record<number, { score: number; comment: string; tags: string[] }>>({});
+const documentPreview = reactive({
+  visible: false,
+  title: "",
+  filename: "",
+  mimeType: "text/markdown",
+  content: "",
+  activityTitle: "",
+});
+
+const startClassForm = reactive({
+  classroom_id: 0,
+  course_id: 0,
+  view_mode: "lab-grid",
+  ip_lock_enabled: true,
+  class_password: "",
+});
 
 const draftTitle = ref("AI 交互作业：信息科技场景判断");
 const learningGoal = ref("理解人工智能在信息科技课堂中的合理应用边界，并能根据活动目标设计交互作业。");
-const resourceNames = ref("教材页、课堂 PPT、示例截图");
+const resourceNames = ref("教材页, 课堂 PPT, 示例截图");
 const selectedComponents = ref<string[]>(["single_choice", "sequence", "hotspot"]);
 
 const createCourseForm = reactive({
-  title: "八下第二单元 第 4 课 数据与可视化表达",
+  title: "八下第二单元 第4课 数据与可视化表达",
   subject: "信息科技",
   grade_scope: "八年级",
   term: "2025-2026 下",
   lesson_no: "L04",
   summary: "围绕数据采集、图表阅读与表达设计课程。",
   create_course_agent: true,
+});
+
+const selectedClassroom = computed(() => {
+  return dashboard.value?.classroom_options.find((item) => item.id === selectedClassroomId.value) ?? null;
 });
 
 const featuredActivity = computed<ActivityTaskDescriptor | null>(() => {
@@ -655,7 +859,7 @@ const showcaseSubmissions = computed<SubmissionDescriptor[]>(() => {
 
 onMounted(async () => {
   if (session.user?.role === "teacher") {
-    await loadDashboard();
+    await initializeTeacherWorkbench();
   }
 });
 
@@ -663,39 +867,65 @@ watch(
   () => session.user?.id,
   async (value) => {
     if (value && session.user?.role === "teacher") {
-      await loadDashboard();
+      await initializeTeacherWorkbench();
+      return;
     }
-  }
+    dashboard.value = null;
+    courseDetail.value = null;
+  },
 );
-
-watch(selectedCourseId, async (courseId) => {
-  if (!courseId) {
-    return;
-  }
-  await loadCourseDetail(courseId);
-});
 
 async function loginDemo() {
   await session.login("kylin", "222221", "xingzhi-school");
   await router.replace("/teacher");
-  await loadDashboard();
+  await initializeTeacherWorkbench();
 }
 
-async function loadDashboard() {
+async function initializeTeacherWorkbench() {
+  await loadDashboard(selectedClassroomId.value);
+}
+
+async function loadDashboard(targetClassroomId: number | null = selectedClassroomId.value) {
   if (!session.user) {
     return;
   }
-  dashboard.value = await api.getTeacherDashboard(session.user.id);
-  if (!selectedCourseId.value || !dashboard.value.course_directory.some((course) => course.id === selectedCourseId.value)) {
-    selectedCourseId.value = dashboard.value.course_directory[0]?.id ?? null;
+  const nextDashboard = await api.getTeacherDashboard(session.user.id, targetClassroomId);
+  dashboard.value = nextDashboard;
+  selectedClassroomId.value =
+    nextDashboard.current_classroom_id ?? nextDashboard.classroom_options[0]?.id ?? null;
+
+  syncStartClassForm(nextDashboard);
+
+  const preferredCourseId =
+    nextDashboard.course_directory.find((course) => course.id === selectedCourseId.value)?.id ??
+    nextDashboard.active_session?.course_id ??
+    nextDashboard.course_directory[0]?.id ??
+    null;
+
+  selectedCourseId.value = preferredCourseId;
+  if (preferredCourseId) {
+    await loadCourseDetail(preferredCourseId);
+  } else {
+    courseDetail.value = null;
   }
+}
+
+function syncStartClassForm(nextDashboard: TeacherDashboardResponse) {
+  startClassForm.classroom_id =
+    selectedClassroomId.value ?? nextDashboard.current_classroom_id ?? nextDashboard.classroom_options[0]?.id ?? 0;
+  startClassForm.course_id =
+    nextDashboard.active_session?.course_id ??
+    selectedCourseId.value ??
+    nextDashboard.course_directory[0]?.id ??
+    0;
+  startClassForm.view_mode = nextDashboard.active_session?.view_mode ?? startClassForm.view_mode;
+  startClassForm.ip_lock_enabled = nextDashboard.active_session?.ip_lock_enabled ?? true;
 }
 
 async function loadCourseDetail(courseId: number) {
   courseLoading.value = true;
   try {
-    courseDetail.value = await api.getTeacherCourseDetail(courseId);
-    courseTab.value = "activities";
+    courseDetail.value = await api.getTeacherCourseDetail(courseId, selectedClassroomId.value);
     if (generatedDraftCourseId.value !== courseId) {
       generatedDraft.value = null;
       draftHint.value = "";
@@ -706,16 +936,55 @@ async function loadCourseDetail(courseId: number) {
   }
 }
 
-function selectCourse(courseId: number) {
+async function handleClassroomChange(classroomId: number) {
+  selectedClassroomId.value = classroomId;
+  startClassForm.classroom_id = classroomId;
+  await loadDashboard(classroomId);
+}
+
+async function handleSelectCourse(courseId: number) {
   selectedCourseId.value = courseId;
+  startClassForm.course_id = courseId;
   activeTab.value = "courses";
+  await loadCourseDetail(courseId);
+}
+
+async function handleStartClass() {
+  if (!session.user || !startClassForm.classroom_id || !startClassForm.course_id) {
+    ElMessage.warning("请先选择班级与课程。");
+    return;
+  }
+  startClassLoading.value = true;
+  try {
+    const response = await api.startClass({
+      teacher_user_id: session.user.id,
+      classroom_id: startClassForm.classroom_id,
+      course_id: startClassForm.course_id,
+      view_mode: startClassForm.view_mode,
+      ip_lock_enabled: startClassForm.ip_lock_enabled,
+      class_password: startClassForm.class_password.trim() || null,
+    });
+    selectedClassroomId.value = startClassForm.classroom_id;
+    selectedCourseId.value = startClassForm.course_id;
+    activeTab.value = "overview";
+    ElMessage.success(response.message);
+    await loadDashboard(startClassForm.classroom_id);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "开启课堂失败");
+  } finally {
+    startClassLoading.value = false;
+  }
 }
 
 function openShowcase() {
   if (!courseDetail.value) {
     return;
   }
-  router.push({ name: "teacher-showcase", params: { courseId: courseDetail.value.course.id } });
+  router.push({
+    name: "teacher-showcase",
+    params: { courseId: courseDetail.value.course.id },
+    query: selectedClassroomId.value ? { classroomId: String(selectedClassroomId.value) } : undefined,
+  });
 }
 
 function ensureTeacherReviewForm(submission: SubmissionDescriptor) {
@@ -749,8 +1018,8 @@ async function handleGenerateDraft() {
     });
     generatedDraftCourseId.value = selectedCourseId.value;
     courseTab.value = "studio";
-    draftHint.value = "AI 已生成活动草案，你可以继续调整后再发布。";
-    ElMessage.success("AI 活动草案已生成");
+    draftHint.value = "AI 已生成结构化活动草稿，你可以继续调整后再发布。";
+    ElMessage.success("AI 活动草稿已生成");
   } catch (error) {
     draftHint.value = error instanceof Error ? error.message : "生成失败";
     ElMessage.error(draftHint.value);
@@ -760,23 +1029,22 @@ async function handleGenerateDraft() {
 }
 
 async function handlePublishDraft() {
-  if (!session.user || !dashboard.value || !generatedDraft.value) {
+  if (!session.user || !generatedDraft.value || !selectedClassroomId.value) {
+    ElMessage.warning("请先选择班级后再发布。");
     return;
   }
   publishLoading.value = true;
   try {
     const response = await api.publishDraft({
       revision_id: generatedDraft.value.revision_id,
-      classroom_id: dashboard.value.lab_snapshot.classroom_id,
+      classroom_id: selectedClassroomId.value,
       published_by_user_id: session.user.id,
       due_at: publishDueAt.value,
     });
     draftHint.value = `活动已发布到当前班级，发布编号 ${response.publication_id}。`;
     ElMessage.success("活动已发布");
-    await loadDashboard();
-    if (selectedCourseId.value) {
-      await loadCourseDetail(selectedCourseId.value);
-    }
+    await loadDashboard(selectedClassroomId.value);
+    activeTab.value = "courses";
   } catch (error) {
     draftHint.value = error instanceof Error ? error.message : "发布失败";
     ElMessage.error(draftHint.value);
@@ -801,11 +1069,13 @@ async function handleCreateCourse() {
       summary: createCourseForm.summary,
       create_course_agent: createCourseForm.create_course_agent,
     });
-    ElMessage.success(response.message);
     createCourseDialog.value = false;
-    await loadDashboard();
+    ElMessage.success(response.message);
+    await loadDashboard(selectedClassroomId.value);
     selectedCourseId.value = response.course.id;
+    startClassForm.course_id = response.course.id;
     activeTab.value = "courses";
+    await loadCourseDetail(response.course.id);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "创建课程失败");
   } finally {
@@ -819,7 +1089,7 @@ async function handleSubmitTeacherReview(submissionId: number) {
   }
   const form = teacherReviewForms[submissionId];
   if (!form || !form.comment.trim()) {
-    ElMessage.warning("请填写教师点评。");
+    ElMessage.warning("请先填写教师点评。");
     return;
   }
   submittingReviewId.value = submissionId;
@@ -831,10 +1101,7 @@ async function handleSubmitTeacherReview(submissionId: number) {
       tags: form.tags,
     });
     ElMessage.success(response.message);
-    await loadDashboard();
-    if (selectedCourseId.value) {
-      await loadCourseDetail(selectedCourseId.value);
-    }
+    await loadDashboard(selectedClassroomId.value);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "教师点评提交失败");
   } finally {
@@ -842,11 +1109,62 @@ async function handleSubmitTeacherReview(submissionId: number) {
   }
 }
 
+async function handleGenerateDocument(activity: ActivityTaskDescriptor, kind: "briefing" | "lesson") {
+  if (!session.user) {
+    return;
+  }
+  documentLoadingKey.value = `${kind}-${activity.id}`;
+  try {
+    const response =
+      kind === "briefing"
+        ? await api.exportActivityBriefingSummary(activity.id, {
+            teacher_user_id: session.user.id,
+            classroom_id: selectedClassroomId.value,
+          })
+        : await api.generateLessonScript(activity.id, {
+            teacher_user_id: session.user.id,
+            classroom_id: selectedClassroomId.value,
+          });
+    openGeneratedDocument(response, activity.title);
+    ElMessage.success(kind === "briefing" ? "讲评摘要已生成" : "课堂讲评稿已生成");
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "文档生成失败");
+  } finally {
+    documentLoadingKey.value = null;
+  }
+}
+
+function openGeneratedDocument(document: GeneratedDocumentResponse, activityTitle: string) {
+  documentPreview.visible = true;
+  documentPreview.title = document.title;
+  documentPreview.filename = document.suggested_filename;
+  documentPreview.mimeType = document.mime_type;
+  documentPreview.content = document.content;
+  documentPreview.activityTitle = activityTitle;
+}
+
+function downloadGeneratedDocument() {
+  if (!documentPreview.content) {
+    return;
+  }
+  const blob = new Blob([documentPreview.content], {
+    type: `${documentPreview.mimeType};charset=utf-8`,
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = documentPreview.filename || "activity-briefing.md";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function applySuggestion(suggestion: string) {
   draftHint.value = suggestion;
   ElMessage.info(`智能体建议：${suggestion}`);
 }
-
+function displayModeLabel(mode: string) {
+  return classViewModes.find((item) => item.value === mode)?.label ?? mode;
+}
 function formatDateTime(value: string | null) {
   if (!value) {
     return "待定";

@@ -4,9 +4,11 @@ import type {
   AttemptStartResponse,
   AttemptSubmitResponse,
   CourseCreateResponse,
+  GeneratedDocumentResponse,
   LoginResponse,
   PortalResponse,
   PublishResponse,
+  StartClassResponse,
   SubmissionReviewResponse,
   StudentCourseDetailResponse,
   StudentDashboardResponse,
@@ -44,11 +46,13 @@ export const api = {
       body: JSON.stringify({ username, password, school_code: schoolCode ?? null })
     });
   },
-  getTeacherDashboard(userId: number) {
-    return request<TeacherDashboardResponse>(`/teacher/dashboard/${userId}`);
+  getTeacherDashboard(userId: number, classroomId?: number | null) {
+    const query = classroomId ? `?classroom_id=${classroomId}` : "";
+    return request<TeacherDashboardResponse>(`/teacher/dashboard/${userId}${query}`);
   },
-  getTeacherCourseDetail(courseId: number) {
-    return request<TeacherCourseDetailResponse>(`/teacher/courses/${courseId}`);
+  getTeacherCourseDetail(courseId: number, classroomId?: number | null) {
+    const query = classroomId ? `?classroom_id=${classroomId}` : "";
+    return request<TeacherCourseDetailResponse>(`/teacher/courses/${courseId}${query}`);
   },
   createCourse(payload: {
     teacher_user_id: number;
@@ -90,8 +94,39 @@ export const api = {
       body: JSON.stringify(payload)
     });
   },
+  startClass(payload: {
+    teacher_user_id: number;
+    classroom_id: number;
+    course_id: number;
+    view_mode: string;
+    ip_lock_enabled: boolean;
+    class_password?: string | null;
+  }) {
+    return request<StartClassResponse>("/teacher/live-sessions/start", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
   getAnalytics(publicationId: number) {
     return request<AnalyticsResponse>(`/teacher/analytics/publications/${publicationId}`);
+  },
+  exportActivityBriefingSummary(
+    activityId: number,
+    payload: { teacher_user_id: number; classroom_id?: number | null }
+  ) {
+    return request<GeneratedDocumentResponse>(`/teacher/activities/${activityId}/briefing-summary`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  generateLessonScript(
+    activityId: number,
+    payload: { teacher_user_id: number; classroom_id?: number | null }
+  ) {
+    return request<GeneratedDocumentResponse>(`/teacher/activities/${activityId}/lesson-script`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
   },
   createTeacherSubmissionReview(
     submissionId: number,

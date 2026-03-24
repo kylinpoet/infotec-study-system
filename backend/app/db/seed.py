@@ -193,6 +193,31 @@ STUDENT_BLUEPRINTS = [
 ]
 
 
+CLASSROOM_BLUEPRINTS = [
+    {
+        "school_year": "2025-2026",
+        "grade": "八年级",
+        "class_no": "1",
+        "name": "8.1 班",
+        "student_count": len(STUDENT_BLUEPRINTS),
+    },
+    {
+        "school_year": "2025-2026",
+        "grade": "八年级",
+        "class_no": "2",
+        "name": "8.2 班",
+        "student_count": 46,
+    },
+    {
+        "school_year": "2025-2026",
+        "grade": "七年级",
+        "class_no": "3",
+        "name": "7.3 班",
+        "student_count": 44,
+    },
+]
+
+
 def _upsert_tenant(session: Session, blueprint: dict) -> Tenant:
     tenant = session.scalar(select(Tenant).where(Tenant.code == blueprint["code"]))
     if not tenant:
@@ -242,27 +267,41 @@ def _upsert_user(
     return user
 
 
-def _upsert_classroom(session: Session, *, tenant_id: int, teacher_id: int) -> Classroom:
+def _upsert_classroom(
+    session: Session,
+    *,
+    tenant_id: int,
+    teacher_id: int,
+    school_year: str,
+    grade: str,
+    class_no: str,
+    name: str,
+    student_count: int,
+) -> Classroom:
     classroom = session.scalar(
         select(Classroom)
         .where(Classroom.tenant_id == tenant_id)
-        .where(Classroom.name == "8.1 班")
+        .where(Classroom.name == name)
     )
     if not classroom:
         classroom = Classroom(
             tenant_id=tenant_id,
-            school_year="2025-2026",
-            grade="八年级",
-            class_no="1",
-            name="8.1 班",
+            school_year=school_year,
+            grade=grade,
+            class_no=class_no,
+            name=name,
             homeroom_teacher_id=teacher_id,
-            student_count=len(STUDENT_BLUEPRINTS),
+            student_count=student_count,
         )
         session.add(classroom)
         session.flush()
     else:
+        classroom.school_year = school_year
+        classroom.grade = grade
+        classroom.class_no = class_no
+        classroom.name = name
         classroom.homeroom_teacher_id = teacher_id
-        classroom.student_count = len(STUDENT_BLUEPRINTS)
+        classroom.student_count = student_count
     return classroom
 
 
@@ -767,7 +806,20 @@ def seed_database(session: Session):
     )
     _upsert_teacher_profile(session, user_id=teacher.id)
 
-    classroom = _upsert_classroom(session, tenant_id=demo_tenant.id, teacher_id=teacher.id)
+    classrooms = {
+        blueprint["name"]: _upsert_classroom(
+            session,
+            tenant_id=demo_tenant.id,
+            teacher_id=teacher.id,
+            school_year=blueprint["school_year"],
+            grade=blueprint["grade"],
+            class_no=blueprint["class_no"],
+            name=blueprint["name"],
+            student_count=blueprint["student_count"],
+        )
+        for blueprint in CLASSROOM_BLUEPRINTS
+    }
+    classroom = classrooms["8.1 班"]
 
     students_by_no: dict[str, User] = {}
     for student_no, display_name, seat_no in STUDENT_BLUEPRINTS:

@@ -168,6 +168,27 @@ class LabSnapshot(BaseModel):
     seats: list[ClassroomSeat] = Field(default_factory=list)
 
 
+class ClassroomOption(BaseModel):
+    id: int
+    name: str
+    school_year: str
+    grade: str
+    class_no: str
+    student_count: int
+
+
+class LiveSessionDescriptor(BaseModel):
+    id: int | None = None
+    classroom_id: int
+    classroom_label: str
+    course_id: int | None = None
+    course_title: str | None = None
+    status: str
+    view_mode: str
+    ip_lock_enabled: bool
+    started_at: datetime | None = None
+
+
 class TeacherCourseCard(BaseModel):
     id: int
     title: str
@@ -273,8 +294,11 @@ class TeacherDashboardResponse(BaseModel):
     tenant_name: str
     subject: str
     classroom_label: str
+    current_classroom_id: int | None = None
+    classroom_options: list[ClassroomOption] = Field(default_factory=list)
     quick_stats: list[QuickStat] = Field(default_factory=list)
     lab_snapshot: LabSnapshot
+    active_session: LiveSessionDescriptor | None = None
     course_directory: list[TeacherCourseCard] = Field(default_factory=list)
     pending_items: list[PendingItem] = Field(default_factory=list)
     charts: list[ChartPanel] = Field(default_factory=list)
@@ -283,6 +307,8 @@ class TeacherDashboardResponse(BaseModel):
 
 class TeacherCourseDetailResponse(BaseModel):
     course: TeacherCourseCard
+    classroom_id: int | None = None
+    classroom_label: str | None = None
     featured_activity_id: int | None = None
     assignment_preview: AssignmentPreview | None = None
     latest_spec: ActivitySpec | None = None
@@ -340,6 +366,33 @@ class PublishResponse(BaseModel):
     revision_id: int
     classroom_id: int
     status: str
+
+
+class StartClassRequest(BaseModel):
+    teacher_user_id: int
+    classroom_id: int
+    course_id: int
+    view_mode: str = "lab-grid"
+    ip_lock_enabled: bool = True
+    class_password: str | None = None
+
+
+class StartClassResponse(BaseModel):
+    session: LiveSessionDescriptor
+    message: str
+
+
+class ActivityDocumentRequest(BaseModel):
+    teacher_user_id: int
+    classroom_id: int | None = None
+
+
+class GeneratedDocumentResponse(BaseModel):
+    activity_id: int
+    title: str
+    suggested_filename: str
+    mime_type: str = "text/markdown"
+    content: str
 
 
 class FeedbackItem(BaseModel):

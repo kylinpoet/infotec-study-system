@@ -50,6 +50,7 @@ def test_teacher_and_student_dashboards_match_new_information_architecture():
         teacher_payload = teacher.json()
         assert teacher_payload["lab_snapshot"]["classroom_label"] == "8.1 班"
         assert len(teacher_payload["course_directory"]) >= 3
+        assert len(teacher_payload["classroom_options"]) >= 3
         assert teacher_payload["general_assistant"]["title"] == "通用智能体"
 
         student = client.get("/api/v1/student/dashboard/2")
@@ -190,3 +191,75 @@ def test_teacher_can_review_course_submission():
         assert teacher_review.status_code == 200
         assert teacher_review.json()["review"]["reviewer_role"] == "teacher"
         assert teacher_review.json()["review"]["score"] == 96
+
+
+def test_teacher_can_start_class_for_selected_classroom_and_generate_documents():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        teacher_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "kylin", "password": "222221", "school_code": "xingzhi-school"},
+        )
+        assert teacher_login.status_code == 200
+        teacher_id = teacher_login.json()["user"]["id"]
+
+        dashboard = client.get(f"/api/v1/teacher/dashboard/{teacher_id}")
+        assert dashboard.status_code == 200
+        dashboard_payload = dashboard.json()
+        assert len(dashboard_payload["classroom_options"]) >= 3
+
+        primary_classroom_id = dashboard_payload["classroom_options"][0]["id"]
+        target_classroom = dashboard_payload["classroom_options"][1]
+        course_id = dashboard_payload["course_directory"][0]["id"]
+
+        start_class = client.post(
+            "/api/v1/teacher/live-sessions/start",
+            json={
+                "teacher_user_id": teacher_id,
+                "classroom_id": target_classroom["id"],
+                "course_id": course_id,
+                "view_mode": "activity-focus",
+                "ip_lock_enabled": False,
+                "class_password": "8202",
+            },
+        )
+        assert start_class.status_code == 200
+        start_payload = start_class.json()
+        assert start_payload["session"]["classroom_id"] == target_classroom["id"]
+        assert start_payload["session"]["course_id"] == course_id
+        assert start_payload["session"]["view_mode"] == "activity-focus"
+        assert start_payload["session"]["ip_lock_enabled"] is False
+
+        selected_dashboard = client.get(
+            f"/api/v1/teacher/dashboard/{teacher_id}?classroom_id={target_classroom['id']}"
+        )
+        assert selected_dashboard.status_code == 200
+        selected_payload = selected_dashboard.json()
+        assert selected_payload["current_classroom_id"] == target_classroom["id"]
+        assert selected_payload["active_session"]["course_id"] == course_id
+        assert selected_payload["classroom_label"] == target_classroom["name"]
+
+        detail = client.get(f"/api/v1/teacher/courses/{course_id}?classroom_id={primary_classroom_id}")
+        assert detail.status_code == 200
+        activity_id = detail.json()["activities"][0]["id"]
+
+        briefing = client.post(
+            f"/api/v1/teacher/activities/{activity_id}/briefing-summary",
+            json={"teacher_user_id": teacher_id, "classroom_id": primary_classroom_id},
+        )
+        assert briefing.status_code == 200
+        briefing_payload = briefing.json()
+        assert briefing_payload["title"].endswith("讲评摘要")
+        assert "教师讲评重点" in briefing_payload["content"]
+
+        lesson_script = client.post(
+            f"/api/v1/teacher/activities/{activity_id}/lesson-script",
+            json={"teacher_user_id": teacher_id, "classroom_id": primary_classroom_id},
+        )
+        assert lesson_script.status_code == 200
+        lesson_payload = lesson_script.json()
+        assert lesson_payload["title"].endswith("课堂讲评稿")
+        assert "展示优秀作品" in lesson_payload["content"]
