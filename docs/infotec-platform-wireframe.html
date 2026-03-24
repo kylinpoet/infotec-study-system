@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>义务教育信息科技综合平台 AI 线框图</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --paper: #ffffff;
+      --line: #bac4d3;
+      --text: #243142;
+      --muted: #6f7d91;
+      --hint: #eef6ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(53, 115, 220, 0.06), transparent 24%),
+        radial-gradient(circle at bottom right, rgba(20, 184, 166, 0.05), transparent 22%),
+        linear-gradient(180deg, #f7f9fc, #f3f6fa);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .page {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .header {
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      margin-bottom: 18px;
+    }
+
+    .header h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+    }
+
+    .header p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .screens {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .screen {
+      min-height: 960px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .screen-title {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .body {
+      flex: 1;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .box,
+    .hero,
+    .card,
+    .row,
+    .toolbar,
+    .slot,
+    .pill-row,
+    .assistant,
+    .nav-item {
+      border: 1px solid var(--line);
+      background: var(--paper);
+    }
+
+    .box,
+    .hero,
+    .card,
+    .toolbar,
+    .assistant {
+      padding: 12px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      font-size: 12px;
+    }
+
+    .hero {
+      min-height: 190px;
+      background: linear-gradient(180deg, #ffffff, #f9fbff);
+    }
+
+    .hero h2,
+    .card h3,
+    .assistant h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+
+    .meta,
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .pill-row {
+      padding: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      padding: 6px 10px;
+      border: 1px dashed var(--line);
+      background: #fafcff;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 12px;
+    }
+
+    .row {
+      display: grid;
+      gap: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+
+    .list-3 {
+      grid-template-columns: 1.7fr 0.8fr 70px;
+    }
+
+    .list-5 {
+      grid-template-columns: 1.2fr 0.8fr 0.8fr 0.9fr 0.7fr;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .stat {
+      min-height: 76px;
+      padding: 10px;
+      border: 1px dashed var(--line);
+      font-size: 12px;
+      background: #fcfdff;
+    }
+
+    .student-shell,
+    .teacher-shell {
+      display: grid;
+      gap: 12px;
+    }
+
+    .student-shell {
+      grid-template-columns: 1.45fr 0.9fr;
+    }
+
+    .teacher-shell {
+      grid-template-columns: 88px 1fr 0.9fr;
+      min-height: 780px;
+    }
+
+    .sidebar {
+      border: 1px solid var(--line);
+      padding: 10px 8px;
+      display: grid;
+      gap: 8px;
+      align-content: start;
+      background: #fbfcff;
+    }
+
+    .nav-item {
+      padding: 10px 6px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .work-area {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .toolbar {
+      font-size: 12px;
+    }
+
+    .seats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .seat {
+      min-height: 56px;
+      border: 1px dashed var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 11px;
+      padding: 4px;
+      background: #fcfdff;
+    }
+
+    .assistant {
+      background: linear-gradient(180deg, #ffffff, var(--hint));
+    }
+
+    .assistant .slot {
+      min-height: 56px;
+      padding: 10px;
+      font-size: 12px;
+      margin-top: 8px;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .studio {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr 0.9fr;
+      gap: 12px;
+      min-height: 780px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .preview {
+      min-height: 430px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      background: #fcfdff;
+    }
+
+    .preview-screen {
+      min-height: 350px;
+      border: 1px dashed var(--line);
+      padding: 12px;
+      background: #ffffff;
+      font-size: 12px;
+    }
+
+    .chart {
+      min-height: 86px;
+      margin-top: 8px;
+      border: 1px dashed var(--line);
+      padding: 10px;
+      font-size: 12px;
+      background: #ffffff;
+    }
+
+    @media (max-width: 1600px) {
+      .screens {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 980px) {
+      .screens {
+        grid-template-columns: 1fr;
+      }
+
+      .student-shell,
+      .teacher-shell,
+      .studio,
+      .two-col {
+        grid-template-columns: 1fr;
+      }
+
+      .screen {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1>义务教育信息科技综合平台 AI 线框图</h1>
+      <p>目标：从旧式学习网站升级为“公共门户 + 学生中心 + 教师工作台 + AI 作业工坊 + 课程智能体”的一体化平台。</p>
+    </div>
+
+    <div class="screens">
+      <section class="screen">
+        <div class="screen-title">A. 公共门户 / 学校首页</div>
+        <div class="body">
+          <!-- 门户先建立学校品牌与课程可信度，再引导进入学习与教学空间。 -->
+          <div class="topbar">
+            <div>LOGO / 学校名称 / 信息科技课程中心</div>
+            <div>课程介绍 | AI 学习空间 | 作品展示 | 通知公告 | 登录</div>
+          </div>
+
+          <div class="hero">
+            <h2>主视觉区：信息科技课程品牌 + 学期主题</h2>
+            <div class="note">一行价值主张：把课程学习、互动作业、智能辅导和课堂分析整合在一个平台里。</div>
+            <div class="pill-row" style="margin-top: 14px;">
+              <div class="pill">学生登录</div>
+              <div class="pill">教师登录</div>
+              <div class="pill">进入课程地图</div>
+              <div class="pill">查看 AI 作品展</div>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="card">
+              <h3>课程地图</h3>
+              <div class="row list-3">
+                <div>七年级上册 / 信息与数字生活</div>
+                <div>单元进度</div>
+                <div>查看</div>
+              </div>
+              <div class="row list-3">
+                <div>八年级下册 / 人工智能专题</div>
+                <div>热门课程</div>
+                <div>查看</div>
+              </div>
+              <div class="row list-3">
+                <div>项目式学习 / 网页设计与发布</div>
+                <div>作品导向</div>
+                <div>查看</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>AI 学习空间</h3>
+              <div class="meta">介绍平台里的 AI 作业、课程智能体、优秀多模态作品和智能讲评能力。</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>优秀作品展示</h3>
+            <div class="row list-5">
+              <div>作品标题 / 作者</div>
+              <div>年级</div>
+              <div>类型</div>
+              <div>教师评语</div>
+              <div>预览</div>
+            </div>
+            <div class="row list-5">
+              <div>AI 伦理小辩论海报</div>
+              <div>八年级</div>
+              <div>图片</div>
+              <div>创意优秀</div>
+              <div>打开</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen">
+        <div class="screen-title">B. 学生中心 / 我的学习</div>
+        <div class="body">
+          <!-- 学生端强调“今天做什么”和“需要帮助时随时呼出助手”。 -->
+          <div class="topbar">
+            <div>欢迎，240101 / 8.1 班 / 陈安琪</div>
+            <div>今日签到 | 我的资料 | 退出</div>
+          </div>
+
+          <div class="pill-row">
+            <div class="pill">我的课程</div>
+            <div class="pill">交互作业</div>
+            <div class="pill">我的作品</div>
+            <div class="pill">练习与测验</div>
+            <div class="pill">成长档案</div>
+          </div>
+
+          <div class="stats">
+            <div class="stat">今日任务 3 项</div>
+            <div class="stat">本周提交 5 件</div>
+            <div class="stat">最近评价 2 条</div>
+            <div class="stat">AI 提示 1 条</div>
+          </div>
+
+          <div class="student-shell">
+            <div class="stack">
+              <div class="card">
+                <h3>本周学习进度</h3>
+                <div class="row list-3">
+                  <div>八下第一单元 第2课 人工智能应用</div>
+                  <div>进行中</div>
+                  <div>进入</div>
+                </div>
+                <div class="row list-3">
+                  <div>AI 交互作业：无人驾驶场景判断</div>
+                  <div>待完成</div>
+                  <div>开始</div>
+                </div>
+                <div class="row list-3">
+                  <div>作品提交：机器翻译</div>
+                  <div>已完成</div>
+                  <div>查看</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>最近作品</h3>
+                <div class="row list-5">
+                  <div>活动一：机器翻译</div>
+                  <div>Python</div>
+                  <div>2026-03-18</div>
+                  <div>待讲评</div>
+                  <div>预览</div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="assistant">
+              <h3>智能体助手</h3>
+              <div class="meta">默认是启发式辅导，不直接给标准答案。</div>
+              <div class="slot">我没看懂这道题，帮我拆成 3 个步骤。</div>
+              <div class="slot">看看我上传的截图，哪里做错了？</div>
+              <div class="slot">根据我今天的错题，给我一组练习。</div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen">
+        <div class="screen-title">C. 教师工作台 / 课堂总控</div>
+        <div class="body">
+          <!-- 教师端保留“一屏控课堂”的优势，同时把 AI 入口变成高频主入口。 -->
+          <div class="teacher-shell">
+            <aside class="sidebar">
+              <div class="nav-item">课堂总览</div>
+              <div class="nav-item">课程管理</div>
+              <div class="nav-item">AI 作业工坊</div>
+              <div class="nav-item">课程智能体</div>
+              <div class="nav-item">作品批改</div>
+              <div class="nav-item">签到记录</div>
+              <div class="nav-item">学生管理</div>
+              <div class="nav-item">资源库</div>
+              <div class="nav-item">智能助手</div>
+            </aside>
+
+            <div class="work-area">
+              <div class="toolbar">
+                <div class="row list-5">
+                  <div>年级 / 班级 / 当前课程</div>
+                  <div>开始上课</div>
+                  <div>课堂模式</div>
+                  <div>机房视图</div>
+                  <div>AI 生成作业</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>课堂状态面板</h3>
+                <div class="meta">已签到人数、未提交人数、进行中活动、作品互评、IP 锁定、班级密码。</div>
+                <div class="seats">
+                  <div class="seat">240101<br />已签到</div>
+                  <div class="seat">240102<br />未签到</div>
+                  <div class="seat">240103<br />待提交</div>
+                  <div class="seat">240104<br />已提交</div>
+                  <div class="seat">240105<br />互评中</div>
+                  <div class="seat">240106<br />离线</div>
+                  <div class="seat">240107<br />AI 作业中</div>
+                  <div class="seat">240108<br />讲评待看</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>待处理事项</h3>
+                <div class="row list-5">
+                  <div>机器翻译交互作业</div>
+                  <div>39 份提交</div>
+                  <div>自动评分完成</div>
+                  <div>待教师复核</div>
+                  <div>查看</div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="assistant">
+              <h3>右侧智能体助手</h3>
+              <div class="meta">基于当前课程上下文给出建议。</div>
+              <div class="slot">帮我根据今天的课程生成 8 道基础题。</div>
+              <div class="slot">总结本班最常错的 3 个点，生成讲评提纲。</div>
+              <div class="slot">给这节课建立专属课程智能体。</div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen">
+        <div class="screen-title">D. AI 作业工坊 / 课程智能体配置</div>
+        <div class="body">
+          <!-- 这里把“生成作业、绑定课程智能体、预览学生数据回流”放在一个工作流里。 -->
+          <div class="studio">
+            <div class="stack">
+              <div class="card">
+                <h3>输入区</h3>
+                <div class="meta">年级、课程主题、学习目标、难度、题型、参考材料。</div>
+                <div class="slot">目标：理解机器翻译的原理与局限</div>
+                <div class="slot">资料：教材页 / PPT / 参考图片 / 样题</div>
+                <div class="slot">题型：选择题 + 拖拽题 + 图像判断题</div>
+              </div>
+
+              <div class="card">
+                <h3>课程智能体</h3>
+                <div class="meta">勾选“创建专课专用智能体”，系统自动生成初始设定。</div>
+                <div class="slot">角色：课程助教 / 答疑助手 / 讲评助手</div>
+              </div>
+            </div>
+
+            <div class="preview">
+              <h3 style="margin: 0 0 10px; font-size: 16px;">作业交互页预览</h3>
+              <div class="preview-screen">
+                <div class="row list-3">
+                  <div>题目 1：哪种场景最适合机器翻译？</div>
+                  <div>单选题</div>
+                  <div>编辑</div>
+                </div>
+                <div class="row list-3">
+                  <div>题目 2：拖拽 AI 翻译流程顺序</div>
+                  <div>拖拽题</div>
+                  <div>编辑</div>
+                </div>
+                <div class="row list-3">
+                  <div>题目 3：根据图片判断翻译错误类型</div>
+                  <div>识图题</div>
+                  <div>编辑</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="assistant">
+                <h3>发布设置</h3>
+                <div class="slot">教师预览通过后发布</div>
+                <div class="slot">自动评分 + 教师复核</div>
+                <div class="slot">绑定本课程智能体</div>
+              </div>
+
+              <div class="card">
+                <h3>数据回流与分析</h3>
+                <div class="chart">图表：正确率分布</div>
+                <div class="chart">图表：题目通过率</div>
+                <div class="chart">图表：班级得分区间</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
