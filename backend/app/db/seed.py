@@ -16,6 +16,9 @@ from app.db.models import (
     Classroom,
     Course,
     LiveClassSession,
+    PortalAnnouncementRecord,
+    PortalConfig,
+    PortalSchoolProfile,
     QuestionComponentRegistry,
     SubmissionAsset,
     SubmissionReview,
@@ -24,6 +27,12 @@ from app.db.models import (
     Tenant,
     User,
     WorkSubmission,
+)
+from app.services.portal_content import (
+    DEFAULT_FEATURED_SCHOOL_CODE,
+    DEFAULT_HERO_SUBTITLE,
+    DEFAULT_HERO_TITLE,
+    build_default_announcement_payloads,
 )
 
 
@@ -245,6 +254,7 @@ def _upsert_user(
     password: str,
     role: str,
     display_name: str,
+    avatar: str | None = None,
 ) -> User:
     user = session.scalar(select(User).where(User.username == username))
     if not user:
@@ -254,6 +264,7 @@ def _upsert_user(
             password_hash=hash_password(password),
             role=role,
             display_name=display_name,
+            avatar=avatar,
             status="active",
         )
         session.add(user)
@@ -263,6 +274,7 @@ def _upsert_user(
         user.password_hash = hash_password(password)
         user.role = role
         user.display_name = display_name
+        user.avatar = avatar
         user.status = "active"
     return user
 
@@ -318,6 +330,68 @@ def _upsert_teacher_profile(session: Session, *, user_id: int):
     else:
         profile.subject = "信息科技"
         profile.title = "骨干教师"
+
+
+def _upsert_portal_config(session: Session):
+    config = session.scalar(select(PortalConfig).order_by(PortalConfig.id.asc()).limit(1))
+    if not config:
+        config = PortalConfig(
+            hero_title=DEFAULT_HERO_TITLE,
+            hero_subtitle=DEFAULT_HERO_SUBTITLE,
+            featured_school_code=DEFAULT_FEATURED_SCHOOL_CODE,
+        )
+        session.add(config)
+        session.flush()
+    else:
+        config.hero_title = DEFAULT_HERO_TITLE
+        config.hero_subtitle = DEFAULT_HERO_SUBTITLE
+        config.featured_school_code = DEFAULT_FEATURED_SCHOOL_CODE
+    return config
+
+
+def _upsert_portal_school_profile(session: Session, *, tenant: Tenant, blueprint: dict):
+    profile = session.scalar(
+        select(PortalSchoolProfile).where(PortalSchoolProfile.tenant_id == tenant.id).limit(1)
+    )
+    features = [{"title": title, "description": description} for title, description in blueprint["features"]]
+    metrics = [{"title": title, "value": value, "hint": hint} for title, value, hint in blueprint["metrics"]]
+    if not profile:
+        profile = PortalSchoolProfile(
+            tenant_id=tenant.id,
+            district=blueprint["district"],
+            slogan=blueprint["slogan"],
+            grade_scope=blueprint["grade_scope"],
+            features_json=features,
+            metrics_json=metrics,
+        )
+        session.add(profile)
+        session.flush()
+    else:
+        profile.district = blueprint["district"]
+        profile.slogan = blueprint["slogan"]
+        profile.grade_scope = blueprint["grade_scope"]
+        profile.features_json = features
+        profile.metrics_json = metrics
+    return profile
+
+
+def _upsert_portal_announcement(session: Session, *, payload: dict):
+    announcement = session.scalar(
+        select(PortalAnnouncementRecord)
+        .where(PortalAnnouncementRecord.title == payload["title"])
+        .limit(1)
+    )
+    if not announcement:
+        announcement = PortalAnnouncementRecord(**payload)
+        session.add(announcement)
+        session.flush()
+    else:
+        announcement.tag = payload["tag"]
+        announcement.summary = payload["summary"]
+        announcement.published_at = payload["published_at"]
+        announcement.display_order = payload["display_order"]
+        announcement.is_active = payload["is_active"]
+    return announcement
 
 
 def _upsert_student_profile(
@@ -794,6 +868,15 @@ def seed_database(session: Session):
         blueprint["code"]: _upsert_tenant(session, blueprint)
         for blueprint in TENANT_BLUEPRINTS
     }
+    blueprint_by_code = {blueprint["code"]: blueprint for blueprint in TENANT_BLUEPRINTS}
+
+    _upsert_portal_config(session)
+    for tenant in tenant_by_code.values():
+        blueprint = blueprint_by_code.get(tenant.code)
+        if blueprint:
+            _upsert_portal_school_profile(session, tenant=tenant, blueprint=blueprint)
+    for payload in build_default_announcement_payloads():
+        _upsert_portal_announcement(session, payload=payload)
 
     demo_tenant = tenant_by_code["xingzhi-school"]
     teacher = _upsert_user(
@@ -803,8 +886,18 @@ def seed_database(session: Session):
         password="222221",
         role="teacher",
         display_name="Kylin 老师",
+        avatar="dragon",
     )
     _upsert_teacher_profile(session, user_id=teacher.id)
+    _upsert_user(
+        session,
+        tenant_id=demo_tenant.id,
+        username="portaladmin",
+        password="333333",
+        role="admin",
+        display_name="门户管理员",
+        avatar="rooster",
+    )
 
     classrooms = {
         blueprint["name"]: _upsert_classroom(
@@ -823,6 +916,7 @@ def seed_database(session: Session):
 
     students_by_no: dict[str, User] = {}
     for student_no, display_name, seat_no in STUDENT_BLUEPRINTS:
+        zodiac_key = ["rat", "ox", "tiger", "rabbit", "dragon", "snake", "horse", "goat"][seat_no - 1]
         student = _upsert_user(
             session,
             tenant_id=demo_tenant.id,
@@ -830,6 +924,7 @@ def seed_database(session: Session):
             password="12345",
             role="student",
             display_name=display_name,
+            avatar=zodiac_key,
         )
         _upsert_student_profile(
             session,

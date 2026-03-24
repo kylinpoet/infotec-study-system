@@ -1,11 +1,12 @@
 from fastapi import APIRouter
 
-from app.api.routes import auth, health, portal, student, teacher
+from app.api.routes import admin, auth, health, portal, settings, student, teacher
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(portal.router, prefix="/public", tags=["public"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(teacher.router, prefix="/teacher", tags=["teacher"])
 api_router.include_router(student.router, prefix="/student", tags=["student"])
-
+api_router.include_router(admin.router, prefix="/admin", tags=["admin"])

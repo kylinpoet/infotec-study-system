@@ -36,10 +36,12 @@ export interface PortalFeature {
 }
 
 export interface PortalAnnouncement {
+  id: number | null;
   title: string;
   tag: string;
   summary: string;
   published_at: string;
+  is_active: boolean;
 }
 
 export interface PortalSchool {
@@ -67,17 +69,68 @@ export interface SessionUser {
   id: number;
   username: string;
   display_name: string;
-  role: "teacher" | "student";
+  role: "teacher" | "student" | "admin";
   tenant_id: number;
   tenant_code: string | null;
   tenant_name: string;
   classroom_label: string | null;
   current_course_id: number | null;
+  avatar: string | null;
 }
 
 export interface LoginResponse {
   access_token: string;
   user: SessionUser;
+}
+
+export interface ZodiacAvatarOption {
+  key: string;
+  label: string;
+  animal: string;
+  description: string;
+}
+
+export interface StudentSettingsResponse {
+  user: SessionUser;
+  student_no: string;
+  grade: string;
+  classroom_label: string;
+  seat_no: number | null;
+  zodiac_options: ZodiacAvatarOption[];
+}
+
+export interface TeacherSettingsResponse {
+  user: SessionUser;
+  teacher_no: string;
+  subject: string;
+  title: string | null;
+  zodiac_options: ZodiacAvatarOption[];
+}
+
+export interface PortalHeroSettings {
+  hero_title: string;
+  hero_subtitle: string;
+  featured_school_code: string | null;
+}
+
+export interface PortalSchoolAdminItem {
+  id: number;
+  code: string;
+  name: string;
+  district: string;
+  slogan: string;
+  grade_scope: string;
+  theme: ThemePalette;
+  features: PortalFeature[];
+  metrics: QuickStat[];
+}
+
+export interface PortalAdminDashboardResponse {
+  admin_name: string;
+  hero: PortalHeroSettings;
+  schools: PortalSchoolAdminItem[];
+  announcements: PortalAnnouncement[];
+  quick_stats: QuickStat[];
 }
 
 export interface AgentCard {

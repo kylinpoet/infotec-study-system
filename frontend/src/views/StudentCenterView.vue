@@ -17,6 +17,7 @@
         </p>
       </div>
       <div class="hero-actions">
+        <el-button round @click="router.push('/student/settings')">学生设置</el-button>
         <el-button round @click="generalAssistantOpen = true">通用智能体</el-button>
       </div>
     </section>
@@ -153,6 +154,9 @@
               </div>
 
               <SectionCard v-if="featuredActivity" eyebrow="当前任务" title="本节课活动焦点">
+                <template #icon>
+                  <el-icon><Compass /></el-icon>
+                </template>
                 <div class="activity-focus-card activity-focus-card--student">
                   <div class="activity-focus-card__head">
                     <div>
@@ -177,221 +181,289 @@
               <el-tabs v-model="courseTab">
                 <el-tab-pane label="活动任务" name="activities">
                   <div class="detail-stack">
-                    <SectionCard eyebrow="活动任务流" title="按活动推进课程">
-                      <div class="activity-card-list">
-                        <article v-for="activity in courseDetail.activities" :key="activity.id" class="activity-card">
-                          <div class="activity-card__header">
-                            <div>
-                              <p class="panel-kicker">{{ activity.stage_label }}</p>
-                              <div class="activity-card__title">
-                                <h4>{{ activity.title }}</h4>
-                                <el-tag round>{{ activity.task_type_label }}</el-tag>
+                    <SectionCard eyebrow="活动任务流" title="按步骤推进课程">
+                      <template #icon>
+                        <el-icon><Compass /></el-icon>
+                      </template>
+                      <div class="course-activity-layout">
+                        <aside class="activity-outline">
+                          <button
+                            v-for="activity in courseDetail.activities"
+                            :key="activity.id"
+                            type="button"
+                            class="activity-outline-card"
+                            :class="{ 'activity-outline-card--active': selectedActivityId === activity.id }"
+                            @click="selectActivity(activity.id)"
+                          >
+                            <div class="activity-card__header">
+                              <div>
+                                <p class="panel-kicker">{{ activity.stage_label }}</p>
+                                <strong>{{ activity.title }}</strong>
+                              </div>
+                              <el-tag round effect="plain">{{ activity.status }}</el-tag>
+                            </div>
+                            <p class="panel-note">{{ activity.task_type_label }} · {{ activity.instructions }}</p>
+                          </button>
+                        </aside>
+
+                        <div v-if="selectedActivity" class="workflow-shell">
+                          <div class="workflow-panel">
+                            <div class="workflow-panel__head">
+                              <div>
+                                <p class="panel-kicker">{{ selectedActivity.stage_label }}</p>
+                                <h4>{{ selectedActivity.title }}</h4>
+                              </div>
+                              <div class="hero-actions">
+                                <el-tag round>{{ selectedActivity.task_type_label }}</el-tag>
+                                <el-tag round effect="plain">{{ selectedActivity.status }}</el-tag>
                               </div>
                             </div>
-                            <el-tag round effect="plain">{{ activity.status }}</el-tag>
-                          </div>
 
-                          <p class="panel-note">{{ activity.instructions }}</p>
-
-                          <div class="tag-row">
-                            <el-tag v-if="activity.deliverable" round effect="plain">成果：{{ activity.deliverable }}</el-tag>
-                            <el-tag v-if="activity.due_at" round effect="plain">截止：{{ formatDateTime(activity.due_at) }}</el-tag>
-                            <el-tag v-if="activity.review_enabled" round effect="plain">互评开启</el-tag>
-                          </div>
-
-                          <div v-if="activity.prompt_starters.length" class="activity-prompt-list">
-                            <el-button
-                              v-for="prompt in activity.prompt_starters"
-                              :key="prompt"
-                              text
-                              class="assistant-suggestion"
-                              @click="submissionMessage = prompt"
-                            >
-                              {{ prompt }}
-                            </el-button>
-                          </div>
-
-                          <div v-if="activity.spec?.questions?.length" class="assignment-stage">
-                            <div class="assignment-stage__head">
-                              <strong>交互作业</strong>
-                              <el-tag round effect="plain">{{ activity.question_count }} 题</el-tag>
-                            </div>
-                            <el-form class="assignment-form" @submit.prevent="handleSubmitAssignment(activity)">
-                              <QuestionRenderer
-                                v-for="(question, index) in activity.spec.questions"
-                                :key="question.key"
-                                v-model="ensureAnswers(activity.id)[question.key]"
-                                :index="index"
-                                :question="question"
+                            <el-steps :active="studentWorkflowStep" simple class="workflow-steps">
+                              <el-step
+                                v-for="item in studentWorkflowSteps"
+                                :key="item.key"
+                                :title="item.title"
+                                :description="item.description"
                               />
-                              <div class="hero-actions">
+                            </el-steps>
+
+                            <div v-if="currentStudentWorkflowStep?.key === 'guide'" class="activity-step-panel">
+                              <div class="activity-step-panel__head">
+                                <strong>先理解这一步要完成什么</strong>
+                                <el-tag round effect="plain">{{ selectedActivity.deliverable || "按要求完成活动" }}</el-tag>
+                              </div>
+                              <p class="panel-note">{{ selectedActivity.instructions }}</p>
+                              <div class="tag-row">
+                                <el-tag v-if="selectedActivity.due_at" round effect="plain">截止：{{ formatDateTime(selectedActivity.due_at) }}</el-tag>
+                                <el-tag v-if="selectedActivity.review_enabled" round effect="plain">互评开启</el-tag>
+                                <el-tag round effect="plain">完成 {{ selectedActivity.submission_count }}/{{ selectedActivity.submission_target || "--" }}</el-tag>
+                              </div>
+                              <div v-if="selectedActivity.prompt_starters.length" class="activity-prompt-list">
                                 <el-button
-                                  type="primary"
-                                  :loading="submittingAssignmentId === activity.id"
-                                  @click="handleSubmitAssignment(activity)"
+                                  v-for="prompt in selectedActivity.prompt_starters"
+                                  :key="prompt"
+                                  text
+                                  class="assistant-suggestion"
+                                  @click="submissionMessage = prompt"
                                 >
-                                  提交作答
+                                  {{ prompt }}
                                 </el-button>
                               </div>
-                            </el-form>
-                          </div>
-
-                          <div v-if="activity.accepted_file_types.length" class="artifact-block">
-                            <div class="artifact-block__head">
-                              <strong>作品提交</strong>
-                              <div class="tag-row">
-                                <el-tag v-for="fileType in activity.accepted_file_types" :key="fileType" round effect="plain">
-                                  {{ fileType }}
-                                </el-tag>
-                              </div>
                             </div>
 
-                            <div class="upload-shell">
-                              <el-form label-position="top">
-                                <el-form-item label="作品标题">
-                                  <el-input v-model="ensureUploadForm(activity.id).headline" placeholder="例如：智能海报设计" />
-                                </el-form-item>
-                                <el-form-item label="作品说明">
-                                  <el-input
-                                    v-model="ensureUploadForm(activity.id).summary"
-                                    type="textarea"
-                                    :rows="3"
-                                    placeholder="简要说明你的设计思路和实现方式"
+                            <div v-else-if="currentStudentWorkflowStep?.key === 'assignment'" class="activity-step-panel">
+                              <div class="assignment-stage">
+                                <div class="assignment-stage__head">
+                                  <strong>交互作业</strong>
+                                  <el-tag round effect="plain">{{ selectedActivity.question_count }} 题</el-tag>
+                                </div>
+                                <el-form class="assignment-form" @submit.prevent="handleSubmitAssignment(selectedActivity)">
+                                  <QuestionRenderer
+                                    v-for="(question, index) in selectedActivity.spec?.questions ?? []"
+                                    :key="question.key"
+                                    v-model="ensureAnswers(selectedActivity.id)[question.key]"
+                                    :index="index"
+                                    :question="question"
                                   />
-                                </el-form-item>
-                                <el-form-item label="上传附件">
-                                  <el-upload
-                                    drag
-                                    multiple
-                                    :auto-upload="false"
-                                    :show-file-list="true"
-                                    :limit="6"
-                                    :on-change="createUploadHandler(activity.id)"
-                                    :on-remove="createUploadHandler(activity.id)"
-                                  >
-                                    <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-                                    <div class="el-upload__text">将图片或文档拖到此处，或点击上传</div>
-                                  </el-upload>
-                                </el-form-item>
-                                <div class="hero-actions">
-                                  <el-button
-                                    type="primary"
-                                    :loading="submittingWorkId === activity.id"
-                                    @click="handleSubmitWork(activity)"
-                                  >
-                                    提交作品
-                                  </el-button>
-                                </div>
-                              </el-form>
+                                  <div class="hero-actions">
+                                    <el-button
+                                      type="primary"
+                                      :loading="submittingAssignmentId === selectedActivity.id"
+                                      @click="handleSubmitAssignment(selectedActivity)"
+                                    >
+                                      提交作答
+                                    </el-button>
+                                  </div>
+                                </el-form>
+                              </div>
                             </div>
 
-                            <div v-if="activity.my_submission" class="submission-card submission-card--mine">
-                              <div class="submission-card__head">
-                                <div>
-                                  <strong>{{ activity.my_submission.headline || "我的作品" }}</strong>
-                                  <p class="panel-note">
-                                    {{ formatDateTime(activity.my_submission.submitted_at) }} · {{ activity.my_submission.review_count }} 条评价
-                                  </p>
+                            <div v-else-if="currentStudentWorkflowStep?.key === 'submission'" class="activity-step-panel">
+                              <div class="artifact-block">
+                                <div class="artifact-block__head">
+                                  <strong>作品提交</strong>
+                                  <div class="tag-row">
+                                    <el-tag
+                                      v-for="fileType in selectedActivity.accepted_file_types"
+                                      :key="fileType"
+                                      round
+                                      effect="plain"
+                                    >
+                                      {{ fileType }}
+                                    </el-tag>
+                                  </div>
                                 </div>
-                                <el-tag round effect="plain">
-                                  {{ activity.my_submission.average_review_score != null ? `${activity.my_submission.average_review_score} 分` : "等待评价" }}
-                                </el-tag>
+
+                                <div class="upload-shell">
+                                  <el-form label-position="top">
+                                    <el-form-item label="作品标题">
+                                      <el-input v-model="ensureUploadForm(selectedActivity.id).headline" placeholder="例如：智能海报设计" />
+                                    </el-form-item>
+                                    <el-form-item label="作品说明">
+                                      <el-input
+                                        v-model="ensureUploadForm(selectedActivity.id).summary"
+                                        type="textarea"
+                                        :rows="3"
+                                        placeholder="简要说明你的设计思路和实现方式"
+                                      />
+                                    </el-form-item>
+                                    <el-form-item label="上传附件">
+                                      <el-upload
+                                        drag
+                                        multiple
+                                        :auto-upload="false"
+                                        :show-file-list="true"
+                                        :limit="6"
+                                        :on-change="createUploadHandler(selectedActivity.id)"
+                                        :on-remove="createUploadHandler(selectedActivity.id)"
+                                      >
+                                        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                                        <div class="el-upload__text">将图片或文档拖到此处，或点击上传</div>
+                                      </el-upload>
+                                    </el-form-item>
+                                    <div class="hero-actions">
+                                      <el-button
+                                        type="primary"
+                                        :loading="submittingWorkId === selectedActivity.id"
+                                        @click="handleSubmitWork(selectedActivity)"
+                                      >
+                                        提交作品
+                                      </el-button>
+                                    </div>
+                                  </el-form>
+                                </div>
+
+                                <div v-if="selectedActivity.my_submission" class="submission-card submission-card--mine">
+                                  <div class="submission-card__head">
+                                    <div>
+                                      <strong>{{ selectedActivity.my_submission.headline || "我的作品" }}</strong>
+                                      <p class="panel-note">
+                                        {{ formatDateTime(selectedActivity.my_submission.submitted_at) }} · {{ selectedActivity.my_submission.review_count }} 条评价
+                                      </p>
+                                    </div>
+                                    <el-tag round effect="plain">
+                                      {{ selectedActivity.my_submission.average_review_score != null ? `${selectedActivity.my_submission.average_review_score} 分` : "等待评价" }}
+                                    </el-tag>
+                                  </div>
+                                  <p class="panel-note">{{ selectedActivity.my_submission.summary || "作品已提交。" }}</p>
+                                  <div class="submission-asset-list">
+                                    <a
+                                      v-for="asset in selectedActivity.my_submission.assets"
+                                      :key="asset.id"
+                                      class="submission-asset"
+                                      :href="asset.file_url"
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      <span>{{ asset.file_name }}</span>
+                                      <small>{{ asset.media_kind }}</small>
+                                    </a>
+                                  </div>
+                                </div>
                               </div>
-                              <p class="panel-note">{{ activity.my_submission.summary || "作品已提交。" }}</p>
-                              <div class="submission-asset-list">
-                                <a
-                                  v-for="asset in activity.my_submission.assets"
-                                  :key="asset.id"
-                                  class="submission-asset"
-                                  :href="asset.file_url"
-                                  target="_blank"
-                                  rel="noreferrer"
+                            </div>
+
+                            <div v-else-if="currentStudentWorkflowStep?.key === 'review'" class="activity-step-panel">
+                              <div v-if="selectedActivity.my_submission?.reviews.length" class="review-note-list">
+                                <div
+                                  v-for="review in selectedActivity.my_submission.reviews"
+                                  :key="review.id"
+                                  class="review-note"
                                 >
-                                  <span>{{ asset.file_name }}</span>
-                                  <small>{{ asset.media_kind }}</small>
-                                </a>
-                              </div>
-                              <div v-if="activity.my_submission.reviews.length" class="review-note-list">
-                                <div v-for="review in activity.my_submission.reviews" :key="review.id" class="review-note">
                                   <strong>{{ review.reviewer_name }} · {{ review.score }} 分</strong>
                                   <p>{{ review.comment }}</p>
                                 </div>
                               </div>
+
+                              <div v-if="selectedActivity.review_enabled && selectedActivity.my_review_queue.length" class="review-queue">
+                                <article
+                                  v-for="submission in selectedActivity.my_review_queue"
+                                  :key="submission.id"
+                                  class="submission-card"
+                                >
+                                  <div class="submission-card__head">
+                                    <div>
+                                      <strong>{{ submission.headline || "同学作品" }}</strong>
+                                      <p class="panel-note">{{ submission.student_name }}</p>
+                                    </div>
+                                    <el-tag round effect="plain">{{ submission.review_count }} 条已有评价</el-tag>
+                                  </div>
+                                  <p class="panel-note">{{ submission.summary || "请围绕作品结构、表达和实现完成评价。" }}</p>
+                                  <div class="submission-asset-list">
+                                    <a
+                                      v-for="asset in submission.assets"
+                                      :key="asset.id"
+                                      class="submission-asset"
+                                      :href="asset.file_url"
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >
+                                      <span>{{ asset.file_name }}</span>
+                                      <small>{{ asset.media_kind }}</small>
+                                    </a>
+                                  </div>
+                                  <el-form label-position="top" class="review-form">
+                                    <el-form-item label="评分">
+                                      <el-slider
+                                        v-model="ensureReviewForm(submission.id).score"
+                                        :min="60"
+                                        :max="100"
+                                        :step="1"
+                                        show-input
+                                      />
+                                    </el-form-item>
+                                    <el-form-item label="评价意见">
+                                      <el-input
+                                        v-model="ensureReviewForm(submission.id).comment"
+                                        type="textarea"
+                                        :rows="3"
+                                        placeholder="请给出具体、友善、可执行的建议"
+                                      />
+                                    </el-form-item>
+                                    <el-form-item label="评价标签">
+                                      <el-checkbox-group v-model="ensureReviewForm(submission.id).tags">
+                                        <el-checkbox
+                                          v-for="item in selectedActivity.rubric_items"
+                                          :key="item"
+                                          :label="item"
+                                        >
+                                          {{ item }}
+                                        </el-checkbox>
+                                      </el-checkbox-group>
+                                    </el-form-item>
+                                    <div class="hero-actions">
+                                      <el-button
+                                        type="primary"
+                                        :loading="submittingReviewId === submission.id"
+                                        @click="handleSubmitReview(submission.id)"
+                                      >
+                                        提交评价
+                                      </el-button>
+                                    </div>
+                                  </el-form>
+                                </article>
+                              </div>
+
+                              <div v-else class="step-note">
+                                <p>当前这一步暂时没有待完成互评。</p>
+                                <p>可以先返回前一步检查自己的作品说明，或等待同学作品进入互评队列。</p>
+                              </div>
                             </div>
 
-                            <div v-if="activity.review_enabled && activity.my_review_queue.length" class="review-queue">
-                              <div class="artifact-block__head">
-                                <strong>待完成互评</strong>
-                              </div>
-                              <article
-                                v-for="submission in activity.my_review_queue"
-                                :key="submission.id"
-                                class="submission-card"
+                            <div class="workflow-actions">
+                              <el-button :disabled="studentWorkflowStep === 0" @click="prevStudentWorkflowStep">上一步</el-button>
+                              <el-button
+                                type="primary"
+                                plain
+                                :disabled="studentWorkflowStep >= studentWorkflowSteps.length - 1"
+                                @click="nextStudentWorkflowStep"
                               >
-                                <div class="submission-card__head">
-                                  <div>
-                                    <strong>{{ submission.headline || "同学作品" }}</strong>
-                                    <p class="panel-note">{{ submission.student_name }}</p>
-                                  </div>
-                                  <el-tag round effect="plain">{{ submission.review_count }} 条已有评价</el-tag>
-                                </div>
-                                <p class="panel-note">{{ submission.summary || "请围绕作品结构、表达和实现完成评价。" }}</p>
-                                <div class="submission-asset-list">
-                                  <a
-                                    v-for="asset in submission.assets"
-                                    :key="asset.id"
-                                    class="submission-asset"
-                                    :href="asset.file_url"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    <span>{{ asset.file_name }}</span>
-                                    <small>{{ asset.media_kind }}</small>
-                                  </a>
-                                </div>
-                                <el-form label-position="top" class="review-form">
-                                  <el-form-item label="评分">
-                                    <el-slider
-                                      v-model="ensureReviewForm(submission.id).score"
-                                      :min="60"
-                                      :max="100"
-                                      :step="1"
-                                      show-input
-                                    />
-                                  </el-form-item>
-                                  <el-form-item label="评价意见">
-                                    <el-input
-                                      v-model="ensureReviewForm(submission.id).comment"
-                                      type="textarea"
-                                      :rows="3"
-                                      placeholder="请给出具体、友善、可执行的建议"
-                                    />
-                                  </el-form-item>
-                                  <el-form-item label="评价标签">
-                                    <el-checkbox-group v-model="ensureReviewForm(submission.id).tags">
-                                      <el-checkbox
-                                        v-for="item in activity.rubric_items"
-                                        :key="item"
-                                        :label="item"
-                                      >
-                                        {{ item }}
-                                      </el-checkbox>
-                                    </el-checkbox-group>
-                                  </el-form-item>
-                                  <div class="hero-actions">
-                                    <el-button
-                                      type="primary"
-                                      :loading="submittingReviewId === submission.id"
-                                      @click="handleSubmitReview(submission.id)"
-                                    >
-                                      提交评价
-                                    </el-button>
-                                  </div>
-                                </el-form>
-                              </article>
+                                下一步
+                              </el-button>
                             </div>
                           </div>
-                        </article>
+                        </div>
                       </div>
                     </SectionCard>
                   </div>
@@ -400,6 +472,9 @@
                 <el-tab-pane label="课程反馈" name="feedback">
                   <div class="detail-stack">
                     <SectionCard eyebrow="成长反馈" title="最近回流">
+                      <template #icon>
+                        <el-icon><Collection /></el-icon>
+                      </template>
                       <div class="info-list">
                         <div
                           v-for="item in courseDetail.recent_feedback"
@@ -590,11 +665,13 @@ async function loadCourseDetail(courseId: number) {
   try {
     courseDetail.value = await api.getStudentCourseDetail(courseId, session.user.id);
     courseTab.value = "activities";
+    const preservedActivityId = courseDetail.value.activities.find((item) => item.id === selectedActivityId.value)?.id;
     selectedActivityId.value =
+      preservedActivityId ??
       courseDetail.value.activities.find((item) => item.id === courseDetail.value?.featured_activity_id)?.id ??
       courseDetail.value.activities[0]?.id ??
       null;
-    studentWorkflowStep.value = 0;
+    studentWorkflowStep.value = Math.min(studentWorkflowStep.value, Math.max(studentWorkflowSteps.value.length - 1, 0));
   } finally {
     courseLoading.value = false;
   }

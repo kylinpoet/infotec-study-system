@@ -8,7 +8,13 @@
   >
     <div class="assistant-drawer__body">
       <section class="assistant-block">
-        <p class="panel-note">{{ assistant.subtitle }}</p>
+        <div class="assistant-hero">
+          <ZodiacAgentAvatar :animal-key="session.user?.avatar ?? 'dragon'" compact />
+          <div class="assistant-hero__meta">
+            <h4>{{ assistant.title }}</h4>
+            <p class="panel-note">{{ assistant.subtitle }}</p>
+          </div>
+        </div>
         <div class="assistant-suggestion-list">
           <el-button
             v-for="suggestion in assistant.suggestions"
@@ -54,7 +60,12 @@
 </template>
 
 <script setup lang="ts">
+import ZodiacAgentAvatar from "./ZodiacAgentAvatar.vue";
+
+import { useSessionStore } from "../stores/session";
 import type { AssistantDescriptor } from "../types/contracts";
+
+const session = useSessionStore();
 
 defineProps<{
   modelValue: boolean;

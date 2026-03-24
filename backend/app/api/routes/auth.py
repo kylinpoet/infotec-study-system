@@ -58,5 +58,6 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             tenant_name=tenant.name if tenant else "默认学校",
             classroom_label=classroom_label,
             current_course_id=current_course_id,
+            avatar=user.avatar,
         ),
     )

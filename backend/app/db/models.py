@@ -32,6 +32,27 @@ class Tenant(TimestampMixin, Base):
     ai_quota_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
+class PortalConfig(TimestampMixin, Base):
+    __tablename__ = "portal_config"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    hero_title: Mapped[str] = mapped_column(String(160), nullable=False)
+    hero_subtitle: Mapped[str] = mapped_column(Text, nullable=False)
+    featured_school_code: Mapped[str | None] = mapped_column(String(60))
+
+
+class PortalSchoolProfile(TimestampMixin, Base):
+    __tablename__ = "portal_school_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, unique=True)
+    district: Mapped[str] = mapped_column(String(80), nullable=False)
+    slogan: Mapped[str] = mapped_column(Text, nullable=False)
+    grade_scope: Mapped[str] = mapped_column(String(60), nullable=False)
+    features_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    metrics_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+
+
 class User(TimestampMixin, Base):
     __tablename__ = "users"
 
@@ -248,6 +269,18 @@ class SubmissionReview(TimestampMixin, Base):
     comment: Mapped[str] = mapped_column(Text, nullable=False)
     tags_json: Mapped[list[str]] = mapped_column(JSON, default=list)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class PortalAnnouncementRecord(TimestampMixin, Base):
+    __tablename__ = "portal_announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    tag: Mapped[str] = mapped_column(String(40), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class AIAgent(TimestampMixin, Base):

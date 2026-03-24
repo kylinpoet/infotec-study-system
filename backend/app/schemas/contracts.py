@@ -41,10 +41,12 @@ class PortalFeature(BaseModel):
 
 
 class PortalAnnouncement(BaseModel):
+    id: int | None = None
     title: str
     tag: str
     summary: str
     published_at: datetime
+    is_active: bool = True
 
 
 class PortalSchool(BaseModel):
@@ -84,11 +86,103 @@ class SessionUser(BaseModel):
     tenant_name: str
     classroom_label: str | None = None
     current_course_id: int | None = None
+    avatar: str | None = None
 
 
 class LoginResponse(BaseModel):
     access_token: str
     user: SessionUser
+
+
+class ZodiacAvatarOption(BaseModel):
+    key: str
+    label: str
+    animal: str
+    description: str
+
+
+class StudentSettingsResponse(BaseModel):
+    user: SessionUser
+    student_no: str
+    grade: str
+    classroom_label: str
+    seat_no: int | None = None
+    zodiac_options: list[ZodiacAvatarOption] = Field(default_factory=list)
+
+
+class StudentSettingsUpdateRequest(BaseModel):
+    user_id: int
+    display_name: str
+    avatar: str | None = None
+
+
+class TeacherSettingsResponse(BaseModel):
+    user: SessionUser
+    teacher_no: str
+    subject: str
+    title: str | None = None
+    zodiac_options: list[ZodiacAvatarOption] = Field(default_factory=list)
+
+
+class TeacherSettingsUpdateRequest(BaseModel):
+    user_id: int
+    display_name: str
+    subject: str
+    title: str | None = None
+    avatar: str | None = None
+
+
+class PortalHeroSettings(BaseModel):
+    hero_title: str
+    hero_subtitle: str
+    featured_school_code: str | None = None
+
+
+class PortalSchoolAdminItem(BaseModel):
+    id: int
+    code: str
+    name: str
+    district: str
+    slogan: str
+    grade_scope: str
+    theme: ThemePalette
+    features: list[PortalFeature] = Field(default_factory=list)
+    metrics: list[QuickStat] = Field(default_factory=list)
+
+
+class PortalAdminDashboardResponse(BaseModel):
+    admin_name: str
+    hero: PortalHeroSettings
+    schools: list[PortalSchoolAdminItem] = Field(default_factory=list)
+    announcements: list[PortalAnnouncement] = Field(default_factory=list)
+    quick_stats: list[QuickStat] = Field(default_factory=list)
+
+
+class PortalHeroUpdateRequest(BaseModel):
+    admin_user_id: int
+    hero_title: str
+    hero_subtitle: str
+    featured_school_code: str | None = None
+
+
+class PortalSchoolUpdateRequest(BaseModel):
+    admin_user_id: int
+    name: str
+    district: str
+    slogan: str
+    grade_scope: str
+    theme: ThemePalette
+    features: list[PortalFeature] = Field(default_factory=list)
+    metrics: list[QuickStat] = Field(default_factory=list)
+
+
+class PortalAnnouncementUpsertRequest(BaseModel):
+    admin_user_id: int
+    title: str
+    tag: str
+    summary: str
+    published_at: datetime
+    is_active: bool = True
 
 
 class AgentCard(BaseModel):

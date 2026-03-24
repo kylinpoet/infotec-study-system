@@ -263,3 +263,94 @@ def test_teacher_can_start_class_for_selected_classroom_and_generate_documents()
         lesson_payload = lesson_script.json()
         assert lesson_payload["title"].endswith("课堂讲评稿")
         assert "展示优秀作品" in lesson_payload["content"]
+
+
+def test_student_settings_support_zodiac_agent_selection():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "240101", "password": "12345", "school_code": "xingzhi-school"},
+        )
+        assert login.status_code == 200
+        student = login.json()["user"]
+        assert student["avatar"]
+
+        settings = client.get(f"/api/v1/settings/student/{student['id']}")
+        assert settings.status_code == 200
+        settings_payload = settings.json()
+        assert len(settings_payload["zodiac_options"]) == 12
+
+        update = client.put(
+            "/api/v1/settings/student",
+            json={"user_id": student["id"], "display_name": "陈安然同学", "avatar": "rabbit"},
+        )
+        assert update.status_code == 200
+        update_payload = update.json()
+        assert update_payload["user"]["display_name"] == "陈安然同学"
+        assert update_payload["user"]["avatar"] == "rabbit"
+
+
+def test_portal_admin_can_manage_portal_content():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "portaladmin", "password": "333333", "school_code": "xingzhi-school"},
+        )
+        assert login.status_code == 200
+        admin = login.json()["user"]
+        assert admin["role"] == "admin"
+
+        dashboard = client.get(f"/api/v1/admin/portal/dashboard/{admin['id']}")
+        assert dashboard.status_code == 200
+        dashboard_payload = dashboard.json()
+        assert len(dashboard_payload["schools"]) >= 3
+        assert dashboard_payload["hero"]["featured_school_code"] == "xingzhi-school"
+
+        hero_update = client.put(
+            "/api/v1/admin/portal/hero",
+            json={
+                "admin_user_id": admin["id"],
+                "hero_title": "信息科技课程新门户",
+                "hero_subtitle": "统一管理学校特色、公告与主题风格。",
+                "featured_school_code": "haitang-school",
+            },
+        )
+        assert hero_update.status_code == 200
+        assert hero_update.json()["featured_school_code"] == "haitang-school"
+
+        school_update = client.put(
+            "/api/v1/admin/portal/schools/xingzhi-school",
+            json={
+                "admin_user_id": admin["id"],
+                "name": "行知信息科技实验学校",
+                "district": "浦东新区",
+                "slogan": "新的门户标语",
+                "grade_scope": "小学高段 - 初中",
+                "theme": {"primary": "#2357D9", "secondary": "#19B59C", "accent": "#E99A20"},
+                "features": [{"title": "智能门户", "description": "支持统一维护学校特色资料。"}],
+                "metrics": [{"title": "课程目录", "value": "40", "hint": "门户首页显示最新课程规模"}],
+            },
+        )
+        assert school_update.status_code == 200
+
+        announcement_create = client.post(
+            "/api/v1/admin/portal/announcements",
+            json={
+                "admin_user_id": admin["id"],
+                "title": "门户后台已上线",
+                "tag": "后台更新",
+                "summary": "支持多校学校资料与公告统一管理。",
+                "published_at": "2026-03-24T09:00:00",
+                "is_active": True,
+            },
+        )
+        assert announcement_create.status_code == 200
+        assert announcement_create.json()["title"] == "门户后台已上线"

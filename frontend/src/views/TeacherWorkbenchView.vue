@@ -23,6 +23,7 @@
           <strong>{{ selectedClassroom?.name ?? dashboard.classroom_label }}</strong>
         </div>
         <div class="hero-actions">
+          <el-button round @click="router.push('/teacher/settings')">教师设置</el-button>
           <el-button round @click="generalAssistantOpen = true">通用智能体</el-button>
           <el-button type="primary" round @click="createCourseDialog = true">生成课程</el-button>
         </div>
@@ -299,6 +300,9 @@
               </div>
 
               <SectionCard v-if="featuredActivity" eyebrow="活动焦点" title="当前课程任务焦点">
+                <template #icon>
+                  <el-icon><Flag /></el-icon>
+                </template>
                 <div class="activity-focus-card">
                   <div class="activity-focus-card__head">
                     <div>
@@ -325,6 +329,9 @@
                 <el-tab-pane label="活动任务" name="activities">
                   <div class="detail-stack">
                     <SectionCard eyebrow="活动任务流" title="课程按活动任务展开">
+                      <template #icon>
+                        <el-icon><Reading /></el-icon>
+                      </template>
                       <div class="activity-card-list">
                         <article v-for="activity in courseDetail.activities" :key="activity.id" class="activity-card">
                           <div class="activity-card__header">
@@ -527,6 +534,9 @@
                 <el-tab-pane label="课程分析" name="analytics">
                   <div class="detail-stack">
                     <SectionCard eyebrow="分析概览" title="活动与作业分析">
+                      <template #icon>
+                        <el-icon><DataAnalysis /></el-icon>
+                      </template>
                       <div class="analytics-strip">
                         <div class="analytics-tile">
                           <span>活动数量</span>

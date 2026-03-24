@@ -35,6 +35,11 @@ export const useSessionStore = defineStore("session", () => {
     return response.user;
   }
 
+  function setUser(nextUser: SessionUser) {
+    user.value = nextUser;
+    persist();
+  }
+
   function logout() {
     token.value = null;
     user.value = null;
@@ -46,6 +51,7 @@ export const useSessionStore = defineStore("session", () => {
     user,
     isLoggedIn,
     login,
+    setUser,
     logout
   };
 });

@@ -7,11 +7,16 @@ import type {
   GeneratedDocumentResponse,
   LoginResponse,
   PortalResponse,
+  PortalAdminDashboardResponse,
+  PortalAnnouncement,
+  PortalHeroSettings,
   PublishResponse,
   StartClassResponse,
+  StudentSettingsResponse,
   SubmissionReviewResponse,
   StudentCourseDetailResponse,
   StudentDashboardResponse,
+  TeacherSettingsResponse,
   TeacherCourseDetailResponse,
   TeacherDashboardResponse,
   WorkSubmissionResponse
@@ -44,6 +49,91 @@ export const api = {
     return request<LoginResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ username, password, school_code: schoolCode ?? null })
+    });
+  },
+  getStudentSettings(userId: number) {
+    return request<StudentSettingsResponse>(`/settings/student/${userId}`);
+  },
+  updateStudentSettings(payload: { user_id: number; display_name: string; avatar?: string | null }) {
+    return request<StudentSettingsResponse>("/settings/student", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+  getTeacherSettings(userId: number) {
+    return request<TeacherSettingsResponse>(`/settings/teacher/${userId}`);
+  },
+  updateTeacherSettings(payload: {
+    user_id: number;
+    display_name: string;
+    subject: string;
+    title?: string | null;
+    avatar?: string | null;
+  }) {
+    return request<TeacherSettingsResponse>("/settings/teacher", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+  getPortalAdminDashboard(userId: number) {
+    return request<PortalAdminDashboardResponse>(`/admin/portal/dashboard/${userId}`);
+  },
+  updatePortalHero(payload: {
+    admin_user_id: number;
+    hero_title: string;
+    hero_subtitle: string;
+    featured_school_code?: string | null;
+  }) {
+    return request<PortalHeroSettings>("/admin/portal/hero", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+  updatePortalSchool(
+    schoolCode: string,
+    payload: {
+      admin_user_id: number;
+      name: string;
+      district: string;
+      slogan: string;
+      grade_scope: string;
+      theme: { primary: string; secondary: string; accent: string };
+      features: Array<{ title: string; description: string }>;
+      metrics: Array<{ title: string; value: string; hint: string }>;
+    }
+  ) {
+    return request<{ message: string }>(`/admin/portal/schools/${schoolCode}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+  createPortalAnnouncement(payload: {
+    admin_user_id: number;
+    title: string;
+    tag: string;
+    summary: string;
+    published_at: string;
+    is_active: boolean;
+  }) {
+    return request<PortalAnnouncement>(`/admin/portal/announcements`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  updatePortalAnnouncement(
+    announcementId: number,
+    payload: {
+      admin_user_id: number;
+      title: string;
+      tag: string;
+      summary: string;
+      published_at: string;
+      is_active: boolean;
+    }
+  ) {
+    return request<PortalAnnouncement>(`/admin/portal/announcements/${announcementId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
     });
   },
   getTeacherDashboard(userId: number, classroomId?: number | null) {
