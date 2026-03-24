@@ -110,6 +110,13 @@ export interface ActivitySpec {
   title: string;
   instructions: string;
   teacher_tip: string;
+  stage_label: string | null;
+  activity_type: string | null;
+  deliverable: string | null;
+  accepted_file_types: string[];
+  review_enabled: boolean;
+  rubric_items: string[];
+  prompt_starters: string[];
   component_whitelist: string[];
   questions: QuestionSpec[];
 }
@@ -180,6 +187,71 @@ export interface AssignmentPreview {
   auto_generated: boolean;
 }
 
+export interface ReviewDescriptor {
+  id: number;
+  reviewer_name: string;
+  reviewer_role: string;
+  score: number;
+  comment: string;
+  reviewed_at: string | null;
+  tags: string[];
+}
+
+export interface SubmissionAssetDescriptor {
+  id: number;
+  file_name: string;
+  file_type: string;
+  media_kind: string;
+  file_url: string;
+  preview_url: string | null;
+  size_kb: number | null;
+}
+
+export interface SubmissionDescriptor {
+  id: number;
+  student_id: number;
+  student_name: string;
+  status: string;
+  headline: string | null;
+  summary: string | null;
+  submitted_at: string | null;
+  average_review_score: number | null;
+  review_count: number;
+  assets: SubmissionAssetDescriptor[];
+  reviews: ReviewDescriptor[];
+}
+
+export interface ActivityTaskDescriptor {
+  id: number;
+  title: string;
+  task_type: string;
+  task_type_label: string;
+  status: string;
+  stage_label: string;
+  instructions: string;
+  teacher_tip: string | null;
+  deliverable: string | null;
+  publication_id: number | null;
+  published_at: string | null;
+  due_at: string | null;
+  question_count: number;
+  component_whitelist: string[];
+  accepted_file_types: string[];
+  review_enabled: boolean;
+  rubric_items: string[];
+  prompt_starters: string[];
+  submission_count: number;
+  submission_target: number;
+  review_count: number;
+  average_score: number | null;
+  average_review_score: number | null;
+  spec: ActivitySpec | null;
+  recent_submissions: SubmissionDescriptor[];
+  recent_reviews: ReviewDescriptor[];
+  my_submission: SubmissionDescriptor | null;
+  my_review_queue: SubmissionDescriptor[];
+}
+
 export interface TeacherDashboardResponse {
   teacher_name: string;
   tenant_name: string;
@@ -195,9 +267,11 @@ export interface TeacherDashboardResponse {
 
 export interface TeacherCourseDetailResponse {
   course: TeacherCourseCard;
+  featured_activity_id: number | null;
   assignment_preview: AssignmentPreview | null;
   latest_spec: ActivitySpec | null;
   analytics: AnalyticsResponse | null;
+  activities: ActivityTaskDescriptor[];
   charts: ChartPanel[];
   recent_submissions: PendingItem[];
   allowed_components: string[];
@@ -256,9 +330,11 @@ export interface StudentDashboardResponse {
 
 export interface StudentCourseDetailResponse {
   course: StudentCourseCard;
+  featured_activity_id: number | null;
   assignment_preview: AssignmentPreview | null;
   latest_spec: ActivitySpec | null;
   current_publication_id: number | null;
+  activities: ActivityTaskDescriptor[];
   recent_feedback: FeedbackItem[];
   course_assistant: AssistantDescriptor;
 }
@@ -275,4 +351,14 @@ export interface AttemptSubmitResponse {
   correct_count: number;
   total_questions: number;
   feedback: string;
+}
+
+export interface WorkSubmissionResponse {
+  submission: SubmissionDescriptor;
+  message: string;
+}
+
+export interface SubmissionReviewResponse {
+  review: ReviewDescriptor;
+  message: string;
 }

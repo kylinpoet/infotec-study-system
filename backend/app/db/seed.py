@@ -790,11 +790,42 @@ def seed_database(session: Session):
 
     for index, blueprint in enumerate(COURSE_BLUEPRINTS):
         course = _upsert_course(session, tenant_id=demo_tenant.id, blueprint=blueprint)
-        activity = _upsert_activity(session, course_id=course.id, title=blueprint["activity_title"])
+        guide_activity = _upsert_activity(
+            session,
+            course_id=course.id,
+            title=f"{course.title} 导学任务",
+            activity_type="lesson_guide",
+        )
+        guide_revision = _upsert_revision(
+            session,
+            activity=guide_activity,
+            spec=_guide_spec(course),
+            created_by=teacher.id,
+            prompt_version=f"seed-v3-guide-{course.lesson_no.lower()}",
+        )
+        guide_activity.latest_revision_id = guide_revision.id
+        guide_activity.due_at = now - timedelta(days=max(blueprint["published_offset_days"] - 1, 1))
+
+        interactive_spec = {
+            **blueprint["spec"],
+            "stage_label": "活动 2",
+            "activity_type": "interactive_assignment",
+            "deliverable": "完成交互练习并将成绩自动回流到课程看板。",
+            "prompt_starters": [
+                "帮我分析这份交互练习最容易出错的题型",
+                "请根据这节课内容再补 2 个巩固问题",
+            ],
+        }
+        activity = _upsert_activity(
+            session,
+            course_id=course.id,
+            title=blueprint["activity_title"],
+            activity_type="interactive_assignment",
+        )
         revision = _upsert_revision(
             session,
             activity=activity,
-            spec=blueprint["spec"],
+            spec=interactive_spec,
             created_by=teacher.id,
             prompt_version=f"seed-v2-{course.lesson_no.lower()}",
         )
@@ -821,9 +852,150 @@ def seed_database(session: Session):
                 submitted_at=submitted_at,
                 auto_score=auto_score,
                 total_time_sec=total_time_sec,
-                spec=blueprint["spec"],
+                spec=interactive_spec,
                 correctness_pattern=correctness_pattern,
             )
+
+        project_activity = _upsert_activity(
+            session,
+            course_id=course.id,
+            title=f"{course.title} 作品提交与互评",
+            activity_type="project_submission",
+        )
+        project_revision = _upsert_revision(
+            session,
+            activity=project_activity,
+            spec=_project_spec(course),
+            created_by=teacher.id,
+            prompt_version=f"seed-v3-project-{course.lesson_no.lower()}",
+        )
+        project_publication = _upsert_publication(
+            session,
+            revision_id=project_revision.id,
+            classroom_id=classroom.id,
+            published_by=teacher.id,
+            published_at=publication.published_at + timedelta(days=2),
+            due_at=publication.due_at + timedelta(days=5),
+        )
+        project_activity.due_at = project_publication.due_at
+
+        submission_blueprints = [
+            (
+                "240101",
+                "智慧校园提示海报",
+                "我把课堂里关于 AI 使用边界的要点整理成一张海报，并附了设计说明。",
+                [
+                    (
+                        f"{course.lesson_no.lower()}-poster.svg",
+                        "image/svg+xml",
+                        _data_url(
+                            "image/svg+xml",
+                            f"<svg xmlns='http://www.w3.org/2000/svg' width='960' height='720'>"
+                            f"<rect width='100%' height='100%' fill='#E8F0FF'/>"
+                            f"<rect x='48' y='48' width='864' height='624' rx='36' fill='#FFFFFF' stroke='#2F6FED' stroke-width='8'/>"
+                            f"<text x='90' y='150' font-size='58' fill='#1E3A5F'>课程 {course.lesson_no}</text>"
+                            f"<text x='90' y='250' font-size='42' fill='#2F6FED'>信息科技作品海报</text>"
+                            f"<text x='90' y='350' font-size='28' fill='#334155'>1. 先理解场景  2. 再设计交互  3. 最后复核输出</text>"
+                            f"<text x='90' y='420' font-size='28' fill='#0F766E'>AI 负责辅助生成，人负责判断与表达。</text>"
+                            f"</svg>",
+                        ),
+                    ),
+                    (
+                        f"{course.lesson_no.lower()}-design-note.txt",
+                        "text/plain",
+                        _data_url("text/plain", f"{course.title} 设计说明：我希望用图文结合的方式呈现课程重点，并让同学一眼看到任务顺序。"),
+                    ),
+                ],
+                [
+                    ("240102", "student", 91, "结构很清楚，海报和说明文能互相支撑。", ["结构清楚", "表达完整"]),
+                    ("kylin", "teacher", 95, "适合作为课堂展示样例，后续可再增强配色层次。", ["可展示", "可迭代"]),
+                ],
+            ),
+            (
+                "240103",
+                "智能翻译流程卡",
+                "我把从输入原文到人工校对的流程做成了卡片，方便在课程目录里展示。",
+                [
+                    (
+                        f"{course.lesson_no.lower()}-flow.svg",
+                        "image/svg+xml",
+                        _data_url(
+                            "image/svg+xml",
+                            "<svg xmlns='http://www.w3.org/2000/svg' width='960' height='720'>"
+                            "<rect width='100%' height='100%' fill='#F6FFFB'/>"
+                            "<rect x='60' y='90' width='220' height='100' rx='24' fill='#14B8A6'/>"
+                            "<rect x='360' y='90' width='220' height='100' rx='24' fill='#2F6FED'/>"
+                            "<rect x='660' y='90' width='220' height='100' rx='24' fill='#F59E0B'/>"
+                            "<text x='110' y='150' font-size='30' fill='#fff'>输入原文</text>"
+                            "<text x='395' y='150' font-size='30' fill='#fff'>模型生成</text>"
+                            "<text x='680' y='150' font-size='30' fill='#fff'>人工复核</text>"
+                            "<path d='M285 140 H350' stroke='#0F172A' stroke-width='10'/>"
+                            "<path d='M585 140 H650' stroke='#0F172A' stroke-width='10'/>"
+                            "</svg>",
+                        ),
+                    ),
+                    (
+                        f"{course.lesson_no.lower()}-rubric.txt",
+                        "text/plain",
+                        _data_url("text/plain", "互评提示：请从主题表达、信息结构、视觉呈现、技术实现四个维度分别观察。"),
+                    ),
+                ],
+                [
+                    ("240104", "student", 88, "流程卡一眼就能看懂，如果再补一点应用场景会更完整。", ["逻辑清楚", "可补场景"]),
+                    ("kylin", "teacher", 93, "流程信息准确，适合放到课堂大屏讲评。", ["逻辑准确", "适合讲评"]),
+                ],
+            ),
+            (
+                "240105",
+                "机房规范提醒单",
+                "我把机房登录、签到、提交和退出流程做成了规范提醒单，准备给小组展示。",
+                [
+                    (
+                        f"{course.lesson_no.lower()}-notice.svg",
+                        "image/svg+xml",
+                        _data_url(
+                            "image/svg+xml",
+                            "<svg xmlns='http://www.w3.org/2000/svg' width='960' height='720'>"
+                            "<rect width='100%' height='100%' fill='#FFF8EB'/>"
+                            "<rect x='100' y='100' width='760' height='520' rx='32' fill='#FFFFFF' stroke='#F59E0B' stroke-width='8'/>"
+                            "<text x='160' y='200' font-size='52' fill='#B45309'>机房规范提醒单</text>"
+                            "<text x='160' y='310' font-size='30' fill='#334155'>登录设备 -> 课堂签到 -> 完成任务 -> 安全退出</text>"
+                            "<text x='160' y='390' font-size='28' fill='#0F766E'>重点提醒：保护账号信息，不替同学操作设备。</text>"
+                            "</svg>",
+                        ),
+                    ),
+                ],
+                [
+                    ("240106", "student", 86, "提醒点完整，适合给低年级同学做示范。", ["适合展示", "规范完整"]),
+                    ("kylin", "teacher", 90, "如果再加入图标和分栏，门户展示效果会更好。", ["表达完整", "建议优化"]),
+                ],
+            ),
+        ]
+
+        for submission_index, (student_no, headline, summary, assets, reviews) in enumerate(submission_blueprints, start=1):
+            student = students_by_no[student_no]
+            submission = _upsert_work_submission(
+                session,
+                activity_id=project_activity.id,
+                publication_id=project_publication.id,
+                student_id=student.id,
+                headline=headline,
+                summary=summary,
+                submitted_at=project_publication.published_at + timedelta(hours=submission_index + index),
+                assets=assets,
+            )
+            for review_index, (reviewer_no, reviewer_role, score, comment, tags) in enumerate(reviews, start=1):
+                reviewer = teacher if reviewer_no == "kylin" else students_by_no[reviewer_no]
+                _upsert_submission_review(
+                    session,
+                    submission_id=submission.id,
+                    reviewer_id=reviewer.id,
+                    reviewer_role=reviewer_role,
+                    score=score,
+                    comment=comment,
+                    reviewed_at=submission.submitted_at + timedelta(hours=review_index),
+                    tags=tags,
+                )
 
         _upsert_agent(
             session,

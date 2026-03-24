@@ -7,10 +7,12 @@ import type {
   LoginResponse,
   PortalResponse,
   PublishResponse,
+  SubmissionReviewResponse,
   StudentCourseDetailResponse,
   StudentDashboardResponse,
   TeacherCourseDetailResponse,
-  TeacherDashboardResponse
+  TeacherDashboardResponse,
+  WorkSubmissionResponse
 } from "../types/contracts";
 
 const API_BASE = "/api/v1";
@@ -105,6 +107,29 @@ export const api = {
   },
   submitAttempt(attemptId: number, payload: { answers: Array<{ question_key: string; value: unknown }>; total_time_sec: number }) {
     return request<AttemptSubmitResponse>(`/student/attempts/${attemptId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  createWorkSubmission(
+    activityId: number,
+    payload: {
+      student_user_id: number;
+      headline?: string;
+      summary?: string;
+      assets: Array<{ file_name: string; file_type: string; data_url: string }>;
+    }
+  ) {
+    return request<WorkSubmissionResponse>(`/student/activities/${activityId}/submissions`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  createSubmissionReview(
+    submissionId: number,
+    payload: { reviewer_user_id: number; score: number; comment: string; tags: string[] }
+  ) {
+    return request<SubmissionReviewResponse>(`/student/submissions/${submissionId}/reviews`, {
       method: "POST",
       body: JSON.stringify(payload)
     });
