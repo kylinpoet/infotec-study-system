@@ -1,0 +1,2 @@
+"""Infotec backend package."""
+
