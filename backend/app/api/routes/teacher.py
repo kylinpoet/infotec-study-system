@@ -36,12 +36,15 @@ from app.schemas.contracts import (
     PublishRequest,
     PublishResponse,
     QuickStat,
+    SubmissionReviewRequest,
+    SubmissionReviewResponse,
     TeacherCourseDetailResponse,
     TeacherDashboardResponse,
 )
 from app.services.activity_generator import build_activity_spec
 from app.services.activity_tasks import (
     build_activity_task_descriptor,
+    build_review_descriptor,
     build_submission_descriptor,
     latest_interactive_publication_for_course,
 )
@@ -225,6 +228,18 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
         .where(AIAgent.tenant_id == user.tenant_id)
         .where(AIAgent.scope_type == "course")
     ) or 0
+    tenant_work_submissions = db.scalars(
+        select(WorkSubmission)
+        .join(Activity, WorkSubmission.activity_id == Activity.id)
+        .join(Course, Activity.course_id == Course.id)
+        .where(Course.tenant_id == user.tenant_id)
+        .order_by(WorkSubmission.submitted_at.desc(), WorkSubmission.id.desc())
+    ).all()
+    pending_teacher_review_count = 0
+    for submission in tenant_work_submissions:
+        descriptor = build_submission_descriptor(submission, db, review_limit=1)
+        if not descriptor.teacher_reviewed:
+            pending_teacher_review_count += 1
     latest_publication = (
         latest_interactive_publication_for_course(current_course_id, db, classroom.id if classroom else None)
         if current_course_id
@@ -242,6 +257,11 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
             title="课程智能体维护",
             status=f"{total_course_agents} 个已绑定",
             meta="课程专属智能体为独立模块，可在课程目录中单独管理。",
+        ),
+        PendingItem(
+            title="作品待教师点评",
+            status=f"{pending_teacher_review_count} 份待处理",
+            meta="优先处理没有教师点评的作品，作品热度和优秀案例会在课程页自动更新。",
         ),
     ]
     if latest_analytics:
@@ -293,7 +313,7 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
             QuickStat(title="课程目录", value=str(len(course_cards)), hint="支持按课程进入作业预览与分析"),
             QuickStat(title="当前机房", value=lab_snapshot.classroom_label, hint="保留机房视图、IP 锁定与班级密码"),
             QuickStat(title="待复核作业", value=str(lab_snapshot.pending_review_count), hint="教师复核后成绩会回流学生中心"),
-            QuickStat(title="专属智能体", value=str(total_course_agents), hint="课程智能体作为独立模块上线"),
+            QuickStat(title="待点评作品", value=str(pending_teacher_review_count), hint="教师点评后会同步更新作品展示与互评热度"),
         ],
         lab_snapshot=lab_snapshot,
         course_directory=course_cards,
@@ -357,17 +377,32 @@ def get_teacher_course_detail(course_id: int, db: Session = Depends(get_db)):
         .join(Activity, WorkSubmission.activity_id == Activity.id)
         .where(Activity.course_id == course.id)
         .order_by(WorkSubmission.submitted_at.desc(), WorkSubmission.id.desc())
-        .limit(5)
     ).all()
-    for submission in work_items:
-        descriptor = build_submission_descriptor(submission, db, review_limit=2)
+    work_descriptors = [build_submission_descriptor(submission, db, review_limit=3) for submission in work_items]
+    for descriptor in work_descriptors[:5]:
         recent_submissions.append(
             PendingItem(
                 title=f"{descriptor.student_name} · {descriptor.headline or '作品提交'}",
-                status=f"{len(descriptor.assets)} 个附件 / {descriptor.review_count} 条评价",
+                status=(
+                    f"待教师点评 / {descriptor.review_count} 条评价"
+                    if not descriptor.teacher_reviewed
+                    else f"已点评 / {descriptor.review_count} 条评价"
+                ),
                 meta=descriptor.summary or "已回流到教师后台，可继续查看作品预览与互评记录。",
             )
         )
+
+    image_asset_count = 0
+    document_asset_count = 0
+    teacher_reviewed_count = 0
+    for descriptor in work_descriptors:
+        if descriptor.teacher_reviewed:
+            teacher_reviewed_count += 1
+        for asset in descriptor.assets:
+            if asset.media_kind == "image":
+                image_asset_count += 1
+            elif asset.media_kind == "document":
+                document_asset_count += 1
 
     charts = [
         ChartPanel(
@@ -391,6 +426,26 @@ def get_teacher_course_detail(course_id: int, db: Session = Depends(get_db)):
             chart_type="line",
             unit="条",
             points=[ChartDatum(label=item.stage_label, value=item.review_count) for item in activities],
+        ),
+        ChartPanel(
+            key="teacher-review-progress",
+            title="教师点评进度",
+            subtitle="按活动查看当前还有多少作品等待教师点评。",
+            chart_type="bar",
+            unit="份",
+            points=[ChartDatum(label=item.stage_label, value=item.pending_teacher_review_count) for item in activities],
+        ),
+        ChartPanel(
+            key="asset-media-distribution",
+            title="作品附件类型分布",
+            subtitle="帮助教师快速判断本课程更适合做图片展示墙还是文档讲评。",
+            chart_type="pie",
+            unit="个",
+            points=[
+                ChartDatum(label="图片附件", value=image_asset_count),
+                ChartDatum(label="文档附件", value=document_asset_count),
+                ChartDatum(label="教师已点评作品", value=teacher_reviewed_count),
+            ],
         ),
     ]
     if analytics:
@@ -591,3 +646,53 @@ def get_publication_analytics(publication_id: int, db: Session = Depends(get_db)
     if not publication:
         raise HTTPException(status_code=404, detail="发布版本不存在。")
     return build_analytics(publication_id, db)
+
+
+@router.post("/submissions/{submission_id}/reviews", response_model=SubmissionReviewResponse)
+def create_teacher_submission_review(
+    submission_id: int,
+    payload: SubmissionReviewRequest,
+    db: Session = Depends(get_db),
+):
+    teacher, _, _ = _get_teacher(payload.reviewer_user_id, db)
+    submission = db.get(WorkSubmission, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="作品不存在。")
+
+    activity = db.get(Activity, submission.activity_id)
+    course = db.get(Course, activity.course_id) if activity else None
+    if not activity or not course or course.tenant_id != teacher.tenant_id:
+        raise HTTPException(status_code=404, detail="课程不存在。")
+
+    existing = db.scalar(
+        select(SubmissionReview)
+        .where(SubmissionReview.submission_id == submission.id)
+        .where(SubmissionReview.reviewer_id == teacher.id)
+        .limit(1)
+    )
+    if existing:
+        existing.score = payload.score
+        existing.comment = payload.comment
+        existing.tags_json = payload.tags
+        existing.reviewed_at = datetime.now(UTC)
+        existing.reviewer_role = "teacher"
+        review = existing
+    else:
+        review = SubmissionReview(
+            submission_id=submission.id,
+            reviewer_id=teacher.id,
+            reviewer_role="teacher",
+            score=payload.score,
+            comment=payload.comment,
+            tags_json=payload.tags,
+            reviewed_at=datetime.now(UTC),
+        )
+        db.add(review)
+
+    db.commit()
+    db.refresh(review)
+
+    return SubmissionReviewResponse(
+        review=build_review_descriptor(review, db),
+        message="教师点评已保存，作品展示墙和统计分析会自动刷新。",
+    )

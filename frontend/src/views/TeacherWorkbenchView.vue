@@ -268,6 +268,7 @@
 
                             <div v-if="activity.rubric_items.length" class="tag-row">
                               <el-tag v-for="item in activity.rubric_items" :key="item" round>{{ item }}</el-tag>
+                              <el-tag round effect="plain">待教师点评 {{ activity.pending_teacher_review_count }}</el-tag>
                             </div>
 
                             <div class="submission-grid" v-if="activity.recent_submissions.length">
@@ -280,6 +281,9 @@
                                   <el-tag round effect="plain">
                                     {{ submission.average_review_score != null ? `${submission.average_review_score} 分` : `${submission.review_count} 条评价` }}
                                   </el-tag>
+                                </div>
+                                <div v-if="submission.preview_asset_url" class="submission-preview-frame">
+                                  <img class="submission-preview-image" :src="submission.preview_asset_url" :alt="submission.headline || '学生作品预览'" />
                                 </div>
                                 <p class="panel-note">{{ submission.summary || "学生已提交作品，等待进一步评价。" }}</p>
                                 <div class="submission-asset-list">
@@ -295,12 +299,61 @@
                                     <small>{{ asset.media_kind }}</small>
                                   </a>
                                 </div>
+                                <div class="tag-row">
+                                  <el-tag round :type="submission.teacher_reviewed ? 'success' : 'warning'">
+                                    {{ submission.teacher_reviewed ? "已完成教师点评" : "待教师点评" }}
+                                  </el-tag>
+                                  <el-tag round effect="plain">同伴互评 {{ submission.peer_review_count }}</el-tag>
+                                </div>
+                                <div v-if="submission.teacher_review" class="review-note review-note--teacher">
+                                  <strong>教师点评 · {{ submission.teacher_review.score }} 分</strong>
+                                  <p>{{ submission.teacher_review.comment }}</p>
+                                </div>
                                 <div v-if="submission.reviews.length" class="review-note-list">
                                   <div v-for="review in submission.reviews" :key="review.id" class="review-note">
                                     <strong>{{ review.reviewer_name }} · {{ review.score }} 分</strong>
                                     <p>{{ review.comment }}</p>
                                   </div>
                                 </div>
+                                <el-form label-position="top" class="review-form review-form--teacher">
+                                  <el-form-item label="教师评分">
+                                    <el-slider
+                                      v-model="ensureTeacherReviewForm(submission).score"
+                                      :min="60"
+                                      :max="100"
+                                      :step="1"
+                                      show-input
+                                    />
+                                  </el-form-item>
+                                  <el-form-item label="教师点评">
+                                    <el-input
+                                      v-model="ensureTeacherReviewForm(submission).comment"
+                                      type="textarea"
+                                      :rows="3"
+                                      placeholder="补充教师点评，帮助学生复盘和展示优秀案例"
+                                    />
+                                  </el-form-item>
+                                  <el-form-item label="点评标签">
+                                    <el-checkbox-group v-model="ensureTeacherReviewForm(submission).tags">
+                                      <el-checkbox
+                                        v-for="item in activity.rubric_items"
+                                        :key="item"
+                                        :label="item"
+                                      >
+                                        {{ item }}
+                                      </el-checkbox>
+                                    </el-checkbox-group>
+                                  </el-form-item>
+                                  <div class="hero-actions">
+                                    <el-button
+                                      type="primary"
+                                      :loading="submittingReviewId === submission.id"
+                                      @click="handleSubmitTeacherReview(submission.id)"
+                                    >
+                                      {{ submission.teacher_reviewed ? "更新教师点评" : "提交教师点评" }}
+                                    </el-button>
+                                  </div>
+                                </el-form>
                               </article>
                             </div>
                           </div>
@@ -345,6 +398,26 @@
                           </div>
                           <el-tag round>{{ item.status }}</el-tag>
                         </div>
+                      </div>
+                    </SectionCard>
+
+                    <SectionCard v-if="showcaseSubmissions.length" eyebrow="作品展示墙" title="优秀作品与待点评作品">
+                      <div class="submission-grid submission-grid--showcase">
+                        <article v-for="submission in showcaseSubmissions" :key="submission.id" class="submission-card">
+                          <div class="submission-card__head">
+                            <div>
+                              <strong>{{ submission.headline || "学生作品" }}</strong>
+                              <p class="panel-note">{{ submission.student_name }} · {{ formatDateTime(submission.submitted_at) }}</p>
+                            </div>
+                            <el-tag round :type="submission.teacher_reviewed ? 'success' : 'warning'">
+                              {{ submission.teacher_reviewed ? "已点评" : "待点评" }}
+                            </el-tag>
+                          </div>
+                          <div v-if="submission.preview_asset_url" class="submission-preview-frame submission-preview-frame--showcase">
+                            <img class="submission-preview-image" :src="submission.preview_asset_url" :alt="submission.headline || '作品展示'" />
+                          </div>
+                          <p class="panel-note">{{ submission.summary || "课程作品展示" }}</p>
+                        </article>
                       </div>
                     </SectionCard>
                   </div>
@@ -503,6 +576,7 @@ import { useSessionStore } from "../stores/session";
 import type {
   ActivityDraftResponse,
   ActivityTaskDescriptor,
+  SubmissionDescriptor,
   TeacherCourseDetailResponse,
   TeacherDashboardResponse,
 } from "../types/contracts";
@@ -520,12 +594,14 @@ const courseAssistantOpen = ref(false);
 const courseLoading = ref(false);
 const draftLoading = ref(false);
 const publishLoading = ref(false);
+const submittingReviewId = ref<number | null>(null);
 const createCourseDialog = ref(false);
 const createCourseLoading = ref(false);
 const generatedDraft = ref<ActivityDraftResponse | null>(null);
 const generatedDraftCourseId = ref<number | null>(null);
 const publishDueAt = ref<string | null>(null);
 const draftHint = ref("");
+const teacherReviewForms = reactive<Record<number, { score: number; comment: string; tags: string[] }>>({});
 
 const draftTitle = ref("AI 交互作业：信息科技场景判断");
 const learningGoal = ref("理解人工智能在信息科技课堂中的合理应用边界，并能根据活动目标设计交互作业。");
@@ -551,6 +627,29 @@ const featuredActivity = computed<ActivityTaskDescriptor | null>(() => {
     courseDetail.value.activities[0] ??
     null
   );
+});
+
+const showcaseSubmissions = computed<SubmissionDescriptor[]>(() => {
+  if (!courseDetail.value) {
+    return [];
+  }
+  const merged = courseDetail.value.activities.flatMap((activity) => activity.recent_submissions);
+  const deduped = new Map<number, SubmissionDescriptor>();
+  for (const item of merged) {
+    if (!deduped.has(item.id)) {
+      deduped.set(item.id, item);
+    }
+  }
+  return Array.from(deduped.values())
+    .sort((left, right) => {
+      const leftScore = left.teacher_review?.score ?? left.average_review_score ?? 0;
+      const rightScore = right.teacher_review?.score ?? right.average_review_score ?? 0;
+      if (left.teacher_reviewed !== right.teacher_reviewed) {
+        return Number(right.teacher_reviewed) - Number(left.teacher_reviewed);
+      }
+      return rightScore - leftScore;
+    })
+    .slice(0, 6);
 });
 
 onMounted(async () => {
@@ -609,6 +708,17 @@ async function loadCourseDetail(courseId: number) {
 function selectCourse(courseId: number) {
   selectedCourseId.value = courseId;
   activeTab.value = "courses";
+}
+
+function ensureTeacherReviewForm(submission: SubmissionDescriptor) {
+  if (!teacherReviewForms[submission.id]) {
+    teacherReviewForms[submission.id] = {
+      score: Math.round(submission.teacher_review?.score ?? submission.average_review_score ?? 90),
+      comment: submission.teacher_review?.comment ?? "",
+      tags: submission.teacher_review?.tags ? [...submission.teacher_review.tags] : [],
+    };
+  }
+  return teacherReviewForms[submission.id];
 }
 
 async function handleGenerateDraft() {
@@ -692,6 +802,35 @@ async function handleCreateCourse() {
     ElMessage.error(error instanceof Error ? error.message : "创建课程失败");
   } finally {
     createCourseLoading.value = false;
+  }
+}
+
+async function handleSubmitTeacherReview(submissionId: number) {
+  if (!session.user) {
+    return;
+  }
+  const form = teacherReviewForms[submissionId];
+  if (!form || !form.comment.trim()) {
+    ElMessage.warning("请填写教师点评。");
+    return;
+  }
+  submittingReviewId.value = submissionId;
+  try {
+    const response = await api.createTeacherSubmissionReview(submissionId, {
+      reviewer_user_id: session.user.id,
+      score: form.score,
+      comment: form.comment.trim(),
+      tags: form.tags,
+    });
+    ElMessage.success(response.message);
+    await loadDashboard();
+    if (selectedCourseId.value) {
+      await loadCourseDetail(selectedCourseId.value);
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "教师点评提交失败");
+  } finally {
+    submittingReviewId.value = null;
   }
 }
 

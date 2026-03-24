@@ -141,7 +141,17 @@ def build_submission_descriptor(
     ).all()
     reviews = submission_reviews_for_submission(submission.id, db)
     review_preview = reviews[:review_limit]
+    teacher_review_row = next((review for review in reviews if review.reviewer_role == "teacher"), None)
+    peer_review_count = len([review for review in reviews if review.reviewer_role != "teacher"])
     average_review_score = round(sum(review.score for review in reviews) / len(reviews), 1) if reviews else None
+    preview_asset = next(
+        (
+            asset
+            for asset in assets
+            if asset.preview_url or asset.media_kind == "image"
+        ),
+        assets[0] if assets else None,
+    )
     return SubmissionDescriptor(
         id=submission.id,
         student_id=submission.student_id,
@@ -150,8 +160,12 @@ def build_submission_descriptor(
         headline=submission.headline,
         summary=submission.summary,
         submitted_at=submission.submitted_at,
+        preview_asset_url=(preview_asset.preview_url or preview_asset.file_url) if preview_asset else None,
         average_review_score=average_review_score,
         review_count=len(reviews),
+        peer_review_count=peer_review_count,
+        teacher_reviewed=teacher_review_row is not None,
+        teacher_review=build_review_descriptor(teacher_review_row, db) if teacher_review_row else None,
         assets=[
             SubmissionAssetDescriptor(
                 id=asset.id,
@@ -290,7 +304,16 @@ def build_activity_task_descriptor(
             ]
             my_review_queue = [build_submission_descriptor(item, db, review_limit=2) for item in queue_candidates[:4]]
 
-    recent_submissions = [build_submission_descriptor(item, db, review_limit=2) for item in submissions[:4]]
+    recent_submission_descriptors = [build_submission_descriptor(item, db, review_limit=3) for item in submissions]
+    pending_teacher_review_count = len([item for item in recent_submission_descriptors if not item.teacher_reviewed])
+    recent_submission_descriptors.sort(
+        key=lambda item: (
+            not item.teacher_reviewed,
+            item.submitted_at.isoformat() if item.submitted_at else "",
+        ),
+        reverse=True,
+    )
+    recent_submissions = recent_submission_descriptors[:4]
     recent_reviews = [build_review_descriptor(item, db) for item in all_reviews[:4]]
 
     return ActivityTaskDescriptor(
@@ -315,6 +338,7 @@ def build_activity_task_descriptor(
         submission_count=submission_count,
         submission_target=target,
         review_count=len(all_reviews),
+        pending_teacher_review_count=pending_teacher_review_count,
         average_score=average_attempt_score,
         average_review_score=average_review_score,
         spec=spec,

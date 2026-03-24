@@ -226,8 +226,12 @@ class SubmissionDescriptor(BaseModel):
     headline: str | None = None
     summary: str | None = None
     submitted_at: datetime | None = None
+    preview_asset_url: str | None = None
     average_review_score: float | None = None
     review_count: int = 0
+    peer_review_count: int = 0
+    teacher_reviewed: bool = False
+    teacher_review: ReviewDescriptor | None = None
     assets: list[SubmissionAssetDescriptor] = Field(default_factory=list)
     reviews: list[ReviewDescriptor] = Field(default_factory=list)
 
@@ -254,6 +258,7 @@ class ActivityTaskDescriptor(BaseModel):
     submission_count: int = 0
     submission_target: int = 0
     review_count: int = 0
+    pending_teacher_review_count: int = 0
     average_score: float | None = None
     average_review_score: float | None = None
     spec: ActivitySpec | None = None

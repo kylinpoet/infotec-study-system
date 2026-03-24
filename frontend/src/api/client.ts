@@ -93,6 +93,15 @@ export const api = {
   getAnalytics(publicationId: number) {
     return request<AnalyticsResponse>(`/teacher/analytics/publications/${publicationId}`);
   },
+  createTeacherSubmissionReview(
+    submissionId: number,
+    payload: { reviewer_user_id: number; score: number; comment: string; tags: string[] }
+  ) {
+    return request<SubmissionReviewResponse>(`/teacher/submissions/${submissionId}/reviews`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
   getStudentDashboard(userId: number) {
     return request<StudentDashboardResponse>(`/student/dashboard/${userId}`);
   },

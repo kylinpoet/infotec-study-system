@@ -215,8 +215,12 @@ export interface SubmissionDescriptor {
   headline: string | null;
   summary: string | null;
   submitted_at: string | null;
+  preview_asset_url: string | null;
   average_review_score: number | null;
   review_count: number;
+  peer_review_count: number;
+  teacher_reviewed: boolean;
+  teacher_review: ReviewDescriptor | null;
   assets: SubmissionAssetDescriptor[];
   reviews: ReviewDescriptor[];
 }
@@ -243,6 +247,7 @@ export interface ActivityTaskDescriptor {
   submission_count: number;
   submission_target: number;
   review_count: number;
+  pending_teacher_review_count: number;
   average_score: number | null;
   average_review_score: number | null;
   spec: ActivitySpec | null;
