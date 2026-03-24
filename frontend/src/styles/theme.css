@@ -1573,6 +1573,268 @@ textarea {
   width: min(520px, 100%);
 }
 
+.workspace-page--immersive {
+  gap: 18px;
+}
+
+.workspace-page--immersive .workspace-hero {
+  padding: 28px 30px;
+  min-height: 0;
+  border-radius: 34px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-primary) 16%, transparent), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.94));
+}
+
+.workspace-page--immersive .hero-copy {
+  max-width: 760px;
+  font-size: 15px;
+}
+
+.directory-layout--immersive {
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 22px;
+}
+
+.directory-layout--immersive .directory-sidebar {
+  top: 0;
+  gap: 12px;
+}
+
+.directory-layout--immersive .directory-content {
+  padding: 20px;
+  border: 1px solid rgba(215, 224, 236, 0.84);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-secondary) 10%, transparent), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.94));
+  box-shadow: 0 18px 34px rgba(28, 66, 139, 0.08);
+}
+
+.workspace-page--immersive .directory-content__head {
+  padding: 2px 2px 6px;
+}
+
+.workspace-page--immersive .course-list-card,
+.workspace-page--immersive .activity-outline-card {
+  border-radius: 22px;
+}
+
+.workspace-page--immersive .activity-focus-card {
+  margin-bottom: 0;
+  padding: 22px;
+  border-radius: 26px;
+}
+
+.workspace-page--immersive .workflow-panel,
+.workspace-page--immersive .control-panel,
+.workspace-page--immersive .live-session-card {
+  border-radius: 26px;
+}
+
+.workspace-page--immersive .section-card .el-card__body {
+  padding: 22px;
+}
+
+.activity-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.activity-pill-button {
+  padding: 10px 14px;
+  border: 1px solid rgba(215, 224, 236, 0.88);
+  border-radius: 18px;
+  background: rgba(248, 250, 255, 0.96);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.activity-pill-button span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--app-subtext);
+  font-size: 12px;
+}
+
+.activity-pill-button strong {
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.activity-pill-button:hover {
+  transform: translateY(-1px);
+}
+
+.activity-pill-button--active {
+  border-color: color-mix(in srgb, var(--theme-primary) 58%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 8%, white), rgba(255, 255, 255, 0.98));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--theme-primary) 12%, transparent);
+}
+
+.activity-card--collapsed {
+  display: none;
+}
+
+.chart-card {
+  overflow: hidden;
+  border: 1px solid rgba(214, 224, 236, 0.82);
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.06), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 255, 0.96));
+}
+
+.chart-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chart-card__unit {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(239, 246, 255, 0.92);
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chart-card .el-card__body {
+  padding-top: 0;
+}
+
+.chart-view {
+  min-height: 300px;
+}
+
+.assistant-float {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  transform: translateY(-50%);
+}
+
+.assistant-float__trigger {
+  width: 88px;
+  padding: 10px 8px 12px;
+  border: 0;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.85), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 247, 255, 0.96));
+  box-shadow: 0 16px 30px rgba(28, 66, 139, 0.16);
+  cursor: pointer;
+}
+
+.assistant-float__avatar {
+  display: grid;
+  place-items: center;
+}
+
+.assistant-float__badge {
+  display: inline-flex;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.assistant-float__panel {
+  width: 340px;
+  max-height: 72vh;
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(215, 224, 236, 0.88);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-secondary) 12%, transparent), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 249, 255, 0.96));
+  box-shadow: 0 24px 40px rgba(28, 66, 139, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(16px) scale(0.96);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.assistant-float--expanded .assistant-float__panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+}
+
+.assistant-float__head,
+.assistant-float__section-head,
+.assistant-float__agent {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.assistant-float__head h4 {
+  margin: 0 0 6px;
+}
+
+.assistant-float__pin {
+  border: 0;
+  background: rgba(241, 245, 249, 0.96);
+  color: var(--app-subtext);
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.assistant-float__body,
+.assistant-float__section,
+.assistant-float__suggestions,
+.assistant-float__agent-list {
+  display: grid;
+  gap: 12px;
+}
+
+.assistant-float__section {
+  padding-top: 4px;
+}
+
+.assistant-float__section-head span {
+  color: var(--app-subtext);
+  font-size: 12px;
+}
+
+.assistant-float__suggestion,
+.assistant-float__agent {
+  border: 1px solid rgba(215, 224, 236, 0.9);
+  border-radius: 18px;
+  background: rgba(248, 250, 255, 0.96);
+}
+
+.assistant-float__suggestion {
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.assistant-float__suggestion:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--theme-primary) 48%, transparent);
+}
+
+.assistant-float__agent {
+  padding: 12px 14px;
+}
+
 @media (max-width: 1280px) {
   .stats-grid,
   .school-feature-grid,
@@ -1662,5 +1924,18 @@ textarea {
 
   .directory-sidebar {
     position: static;
+  }
+
+  .assistant-float {
+    right: 14px;
+    bottom: 18px;
+    top: auto;
+    transform: none;
+    align-items: end;
+  }
+
+  .assistant-float__panel {
+    width: min(78vw, 320px);
+    max-height: 60vh;
   }
 }

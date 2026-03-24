@@ -313,6 +313,8 @@ def test_portal_admin_can_manage_portal_content():
         dashboard_payload = dashboard.json()
         assert len(dashboard_payload["schools"]) >= 3
         assert dashboard_payload["hero"]["featured_school_code"] == "xingzhi-school"
+        assert dashboard_payload["llm_config"]["model_name"]
+        assert isinstance(dashboard_payload["llm_config"]["model_options"], list)
 
         hero_update = client.put(
             "/api/v1/admin/portal/hero",
@@ -340,6 +342,28 @@ def test_portal_admin_can_manage_portal_content():
             },
         )
         assert school_update.status_code == 200
+
+        llm_update = client.put(
+            "/api/v1/admin/llm/config",
+            json={
+                "admin_user_id": admin["id"],
+                "provider_name": "OpenAI Compatible",
+                "base_url": "https://llm.example.com/v1",
+                "api_key": "sk-test-admin-12345678",
+                "clear_api_key": False,
+                "model_name": "deepseek-chat",
+                "temperature": 0.5,
+                "max_tokens": 8192,
+                "is_enabled": True,
+                "notes": "用于课程活动生成与讲评文档输出。",
+            },
+        )
+        assert llm_update.status_code == 200
+        llm_payload = llm_update.json()
+        assert llm_payload["base_url"] == "https://llm.example.com/v1"
+        assert llm_payload["model_name"] == "deepseek-chat"
+        assert llm_payload["has_api_key"] is True
+        assert llm_payload["api_key_masked"]
 
         announcement_create = client.post(
             "/api/v1/admin/portal/announcements",

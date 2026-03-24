@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import PortalAnnouncementRecord, PortalConfig, PortalSchoolProfile, Tenant, User
+from app.db.models import PortalAnnouncementRecord, PortalSchoolProfile, Tenant, User
 from app.db.session import get_db
 from app.schemas.contracts import (
+    LLMConfigResponse,
+    LLMConfigUpdateRequest,
     PortalAdminDashboardResponse,
     PortalAnnouncement,
     PortalAnnouncementUpsertRequest,
@@ -17,6 +19,7 @@ from app.services.portal_content import (
     build_portal_admin_school_items,
     get_or_create_portal_config,
 )
+from app.services.llm_config import build_llm_config_response, get_or_create_llm_config
 
 router = APIRouter()
 
@@ -32,6 +35,7 @@ def _get_admin(user_id: int, db: Session) -> User:
 def get_portal_admin_dashboard(user_id: int, db: Session = Depends(get_db)):
     admin = _get_admin(user_id, db)
     config = get_or_create_portal_config(db)
+    llm_config = get_or_create_llm_config(db)
     schools = build_portal_admin_school_items(db)
     announcements = db.scalars(
         select(PortalAnnouncementRecord)
@@ -62,7 +66,9 @@ def get_portal_admin_dashboard(user_id: int, db: Session = Depends(get_db)):
             QuickStat(title="学校门户", value=str(active_school_count), hint="支持在同一后台维护多校门户资料"),
             QuickStat(title="门户公告", value=str(len(announcements)), hint="可上架、下架和调整公告顺序"),
             QuickStat(title="当前主推学校", value=config.featured_school_code or "--", hint="首页首屏默认展示学校"),
+            QuickStat(title="当前模型", value=llm_config.model_name, hint="后台可统一维护大模型连接参数"),
         ],
+        llm_config=build_llm_config_response(llm_config),
     )
 
 
@@ -168,3 +174,26 @@ def update_portal_announcement(
         published_at=announcement.published_at,
         is_active=announcement.is_active,
     )
+
+
+@router.put("/llm/config", response_model=LLMConfigResponse)
+def update_llm_config(payload: LLMConfigUpdateRequest, db: Session = Depends(get_db)):
+    _get_admin(payload.admin_user_id, db)
+    config = get_or_create_llm_config(db)
+
+    config.provider_name = payload.provider_name.strip()
+    config.base_url = payload.base_url.strip()
+    config.model_name = payload.model_name.strip()
+    config.temperature = payload.temperature
+    config.max_tokens = payload.max_tokens
+    config.is_enabled = payload.is_enabled
+    config.notes = payload.notes.strip() if payload.notes and payload.notes.strip() else None
+
+    if payload.clear_api_key:
+        config.api_key = None
+    elif payload.api_key and payload.api_key.strip():
+        config.api_key = payload.api_key.strip()
+
+    db.commit()
+    db.refresh(config)
+    return build_llm_config_response(config)

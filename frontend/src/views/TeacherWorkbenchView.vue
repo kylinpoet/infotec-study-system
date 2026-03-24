@@ -7,15 +7,12 @@
     </el-card>
   </div>
 
-  <div v-else-if="dashboard" class="workspace-page">
+  <div v-else-if="dashboard" class="workspace-page workspace-page--immersive">
     <section class="workspace-hero workspace-hero--teacher">
       <div>
         <p class="panel-kicker">{{ dashboard.tenant_name }}</p>
-        <h2>{{ dashboard.teacher_name }} · {{ dashboard.classroom_label }}</h2>
-        <p class="hero-copy">
-          教师端围绕“选班开课、课程目录、活动任务、作品讲评”组织信息。机房状态保留在首页，课程相关的预览、分析、
-          作品点评与讲评文档收束到课程目录中，便于课堂内快速切换。
-        </p>
+        <h2>{{ courseDetail?.course.title ?? `${dashboard.teacher_name} · ${dashboard.classroom_label}` }}</h2>
+        <p class="hero-copy">{{ featuredActivity?.instructions ?? "以当前课程为主舞台，集中处理活动任务、作品讲评和课堂分析。" }}</p>
       </div>
       <div class="workspace-hero__panel">
         <div class="theme-switcher theme-switcher--wide">
@@ -24,28 +21,14 @@
         </div>
         <div class="hero-actions">
           <el-button round @click="router.push('/teacher/settings')">教师设置</el-button>
-          <el-button round @click="generalAssistantOpen = true">通用智能体</el-button>
+          <el-button round @click="openShowcase" :disabled="!courseDetail">作品大屏</el-button>
           <el-button type="primary" round @click="createCourseDialog = true">生成课程</el-button>
         </div>
       </div>
     </section>
 
-    <div class="stats-grid">
-      <StatCard
-        v-for="item in dashboard.quick_stats"
-        :key="item.title"
-        :title="item.title"
-        :value="item.value"
-        :hint="item.hint"
-      >
-        <template #icon>
-          <el-icon><component :is="teacherStatIcon(item.title)" /></el-icon>
-        </template>
-      </StatCard>
-    </div>
-
     <el-tabs v-model="activeTab" class="workspace-tabs">
-      <el-tab-pane label="工作台总览" name="overview">
+      <el-tab-pane label="课堂总览" name="overview">
         <div class="workspace-grid workspace-grid--teacher-overview">
           <SectionCard eyebrow="开课控制" title="按班级开启上课">
             <template #icon>
@@ -254,8 +237,8 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="课程目录" name="courses">
-        <div class="directory-layout directory-layout--teacher">
+      <el-tab-pane label="当前课程" name="courses">
+        <div class="directory-layout directory-layout--teacher directory-layout--immersive">
           <aside class="directory-sidebar">
             <div class="sidebar-head">
               <div>
@@ -295,7 +278,7 @@
                 </div>
                 <div class="hero-actions">
                   <el-button round @click="openShowcase">作品大屏</el-button>
-                  <el-button round @click="courseAssistantOpen = true">课程智能体</el-button>
+                  <el-button round @click="courseTab = 'studio'">AI 发布</el-button>
                 </div>
               </div>
 
@@ -332,8 +315,26 @@
                       <template #icon>
                         <el-icon><Reading /></el-icon>
                       </template>
+                      <div class="activity-pill-row">
+                        <button
+                          v-for="activity in courseDetail.activities"
+                          :key="`switch-${activity.id}`"
+                          type="button"
+                          class="activity-pill-button"
+                          :class="{ 'activity-pill-button--active': featuredActivity?.id === activity.id }"
+                          @click="handleSelectActivity(activity.id)"
+                        >
+                          <span>{{ activity.stage_label }}</span>
+                          <strong>{{ activity.title }}</strong>
+                        </button>
+                      </div>
                       <div class="activity-card-list">
-                        <article v-for="activity in courseDetail.activities" :key="activity.id" class="activity-card">
+                        <article
+                          v-for="activity in courseDetail.activities"
+                          :key="activity.id"
+                          class="activity-card"
+                          :class="{ 'activity-card--collapsed': featuredActivity?.id !== activity.id }"
+                        >
                           <div class="activity-card__header">
                             <div>
                               <p class="panel-kicker">{{ activity.stage_label }}</p>
@@ -769,15 +770,9 @@
     </el-tabs>
 
     <AssistantDrawer
-      v-if="dashboard"
-      v-model="generalAssistantOpen"
-      :assistant="dashboard.general_assistant"
-      @suggest="applySuggestion"
-    />
-    <AssistantDrawer
-      v-if="courseDetail"
-      v-model="courseAssistantOpen"
-      :assistant="courseDetail.course_assistant"
+      v-if="activeAssistant"
+      v-model="assistantPinned"
+      :assistant="activeAssistant"
       @suggest="applySuggestion"
     />
 
@@ -852,7 +847,6 @@ import { api } from "../api/client";
 import AssistantDrawer from "../components/AssistantDrawer.vue";
 import ChartPanelCard from "../components/ChartPanelCard.vue";
 import SectionCard from "../components/SectionCard.vue";
-import StatCard from "../components/StatCard.vue";
 import { useSessionStore } from "../stores/session";
 import type {
   ActivityDraftResponse,
@@ -878,10 +872,10 @@ const dashboard = ref<TeacherDashboardResponse | null>(null);
 const courseDetail = ref<TeacherCourseDetailResponse | null>(null);
 const selectedCourseId = ref<number | null>(null);
 const selectedClassroomId = ref<number | null>(null);
-const activeTab = ref("overview");
+const selectedActivityId = ref<number | null>(null);
+const activeTab = ref("courses");
 const courseTab = ref("activities");
-const generalAssistantOpen = ref(false);
-const courseAssistantOpen = ref(false);
+const assistantPinned = ref(false);
 const courseLoading = ref(false);
 const draftLoading = ref(false);
 const publishLoading = ref(false);
@@ -937,10 +931,18 @@ const featuredActivity = computed<ActivityTaskDescriptor | null>(() => {
     return null;
   }
   return (
+    courseDetail.value.activities.find((item) => item.id === selectedActivityId.value) ??
     courseDetail.value.activities.find((item) => item.id === courseDetail.value?.featured_activity_id) ??
     courseDetail.value.activities[0] ??
     null
   );
+});
+
+const activeAssistant = computed(() => {
+  if (activeTab.value === "courses" && courseDetail.value) {
+    return courseDetail.value.course_assistant;
+  }
+  return dashboard.value?.general_assistant ?? null;
 });
 
 const showcaseSubmissions = computed<SubmissionDescriptor[]>(() => {
@@ -997,7 +999,7 @@ async function loginDemo() {
 }
 
 async function initializeTeacherWorkbench() {
-  activeTab.value = parseWorkbenchTab(route.query.tab) ?? "overview";
+  activeTab.value = parseWorkbenchTab(route.query.tab) ?? "courses";
   await loadDashboard(parsePositiveInt(route.query.classroomId), parsePositiveInt(route.query.courseId));
 }
 
@@ -1046,6 +1048,11 @@ async function loadCourseDetail(courseId: number) {
   courseLoading.value = true;
   try {
     courseDetail.value = await api.getTeacherCourseDetail(courseId, selectedClassroomId.value);
+    selectedActivityId.value =
+      courseDetail.value.activities.find((item) => item.id === selectedActivityId.value)?.id ??
+      courseDetail.value.activities.find((item) => item.id === courseDetail.value?.featured_activity_id)?.id ??
+      courseDetail.value.activities[0]?.id ??
+      null;
     if (generatedDraftCourseId.value !== courseId) {
       generatedDraft.value = null;
       draftHint.value = "";
@@ -1066,8 +1073,13 @@ async function handleSelectCourse(courseId: number) {
   selectedCourseId.value = courseId;
   startClassForm.course_id = courseId;
   activeTab.value = "courses";
+  assistantPinned.value = false;
   await syncWorkbenchRoute();
   await loadCourseDetail(courseId);
+}
+
+function handleSelectActivity(activityId: number) {
+  selectedActivityId.value = activityId;
 }
 
 async function handleStartClass() {
@@ -1087,7 +1099,7 @@ async function handleStartClass() {
     });
     selectedClassroomId.value = startClassForm.classroom_id;
     selectedCourseId.value = startClassForm.course_id;
-    activeTab.value = "overview";
+    activeTab.value = "courses";
     ElMessage.success(response.message);
     await loadDashboard(startClassForm.classroom_id, startClassForm.course_id);
   } catch (error) {
@@ -1293,19 +1305,6 @@ function prevPublishFlowStep() {
   publishFlowStep.value = Math.max(publishFlowStep.value - 1, 0);
 }
 
-function teacherStatIcon(title: string) {
-  if (title.includes("课程")) {
-    return Reading;
-  }
-  if (title.includes("机房")) {
-    return Monitor;
-  }
-  if (title.includes("复核")) {
-    return Stopwatch;
-  }
-  return Flag;
-}
-
 function parsePositiveInt(value: unknown) {
   const normalized = Array.isArray(value) ? value[0] : value;
   const parsed = Number(normalized ?? 0);
@@ -1325,7 +1324,7 @@ async function syncWorkbenchRoute() {
   if (selectedCourseId.value) {
     query.courseId = String(selectedCourseId.value);
   }
-  if (activeTab.value !== "overview") {
+  if (activeTab.value !== "courses") {
     query.tab = activeTab.value;
   }
 
@@ -1341,6 +1340,7 @@ watch(activeTab, async () => {
   if (!dashboard.value) {
     return;
   }
+  assistantPinned.value = false;
   await syncWorkbenchRoute();
 });
 
@@ -1351,7 +1351,7 @@ watch(
       return;
     }
 
-    const nextTab = parseWorkbenchTab(tabValue) ?? "overview";
+    const nextTab = parseWorkbenchTab(tabValue) ?? "courses";
     if (nextTab !== activeTab.value) {
       activeTab.value = nextTab;
     }

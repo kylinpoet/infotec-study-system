@@ -125,12 +125,32 @@ export interface PortalSchoolAdminItem {
   metrics: QuickStat[];
 }
 
+export interface LLMModelOption {
+  label: string;
+  value: string;
+  provider_hint: string | null;
+}
+
+export interface LLMConfigResponse {
+  provider_name: string;
+  base_url: string;
+  api_key_masked: string | null;
+  has_api_key: boolean;
+  model_name: string;
+  model_options: LLMModelOption[];
+  temperature: number;
+  max_tokens: number;
+  is_enabled: boolean;
+  notes: string | null;
+}
+
 export interface PortalAdminDashboardResponse {
   admin_name: string;
   hero: PortalHeroSettings;
   schools: PortalSchoolAdminItem[];
   announcements: PortalAnnouncement[];
   quick_stats: QuickStat[];
+  llm_config: LLMConfigResponse;
 }
 
 export interface AgentCard {

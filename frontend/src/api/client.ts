@@ -6,6 +6,7 @@ import type {
   CourseCreateResponse,
   GeneratedDocumentResponse,
   LoginResponse,
+  LLMConfigResponse,
   PortalResponse,
   PortalAdminDashboardResponse,
   PortalAnnouncement,
@@ -132,6 +133,23 @@ export const api = {
     }
   ) {
     return request<PortalAnnouncement>(`/admin/portal/announcements/${announcementId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+  updateLlmConfig(payload: {
+    admin_user_id: number;
+    provider_name: string;
+    base_url: string;
+    api_key?: string | null;
+    clear_api_key: boolean;
+    model_name: string;
+    temperature: number;
+    max_tokens: number;
+    is_enabled: boolean;
+    notes?: string | null;
+  }) {
+    return request<LLMConfigResponse>("/admin/llm/config", {
       method: "PUT",
       body: JSON.stringify(payload)
     });

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -39,6 +39,21 @@ class PortalConfig(TimestampMixin, Base):
     hero_title: Mapped[str] = mapped_column(String(160), nullable=False)
     hero_subtitle: Mapped[str] = mapped_column(Text, nullable=False)
     featured_school_code: Mapped[str | None] = mapped_column(String(60))
+
+
+class LLMProviderConfig(TimestampMixin, Base):
+    __tablename__ = "llm_provider_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scope: Mapped[str] = mapped_column(String(30), default="platform")
+    provider_name: Mapped[str] = mapped_column(String(80), nullable=False, default="OpenAI Compatible")
+    base_url: Mapped[str] = mapped_column(String(255), nullable=False, default="https://api.openai.com/v1")
+    api_key: Mapped[str | None] = mapped_column(String(255))
+    model_name: Mapped[str] = mapped_column(String(120), nullable=False, default="gpt-4.1-mini")
+    temperature: Mapped[float] = mapped_column(Float, default=0.4)
+    max_tokens: Mapped[int] = mapped_column(Integer, default=4096)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    notes: Mapped[str | None] = mapped_column(Text)
 
 
 class PortalSchoolProfile(TimestampMixin, Base):

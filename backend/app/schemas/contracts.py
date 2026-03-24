@@ -150,12 +150,32 @@ class PortalSchoolAdminItem(BaseModel):
     metrics: list[QuickStat] = Field(default_factory=list)
 
 
+class LLMModelOption(BaseModel):
+    label: str
+    value: str
+    provider_hint: str | None = None
+
+
+class LLMConfigResponse(BaseModel):
+    provider_name: str
+    base_url: str
+    api_key_masked: str | None = None
+    has_api_key: bool = False
+    model_name: str
+    model_options: list[LLMModelOption] = Field(default_factory=list)
+    temperature: float = 0.4
+    max_tokens: int = 4096
+    is_enabled: bool = False
+    notes: str | None = None
+
+
 class PortalAdminDashboardResponse(BaseModel):
     admin_name: str
     hero: PortalHeroSettings
     schools: list[PortalSchoolAdminItem] = Field(default_factory=list)
     announcements: list[PortalAnnouncement] = Field(default_factory=list)
     quick_stats: list[QuickStat] = Field(default_factory=list)
+    llm_config: LLMConfigResponse
 
 
 class PortalHeroUpdateRequest(BaseModel):
@@ -183,6 +203,19 @@ class PortalAnnouncementUpsertRequest(BaseModel):
     summary: str
     published_at: datetime
     is_active: bool = True
+
+
+class LLMConfigUpdateRequest(BaseModel):
+    admin_user_id: int
+    provider_name: str
+    base_url: str
+    api_key: str | None = None
+    clear_api_key: bool = False
+    model_name: str
+    temperature: float = Field(default=0.4, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=4096, ge=256, le=32768)
+    is_enabled: bool = False
+    notes: str | None = None
 
 
 class AgentCard(BaseModel):

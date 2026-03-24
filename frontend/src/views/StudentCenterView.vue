@@ -7,37 +7,20 @@
     </el-card>
   </div>
 
-  <div v-else-if="dashboard" class="workspace-page">
+  <div v-else-if="dashboard" class="workspace-page workspace-page--immersive">
     <section class="workspace-hero workspace-hero--student">
       <div>
         <p class="panel-kicker">{{ dashboard.tenant_name }}</p>
-        <h2>{{ dashboard.student_name }} · {{ dashboard.classroom_label }}</h2>
-        <p class="hero-copy">
-          学生首页优先展示整体成绩、课程目录和成长图表。进入课程后，再沿着活动任务完成交互作业、作品上传、互评和复盘。
-        </p>
+        <h2>{{ courseDetail?.course.title ?? `${dashboard.student_name} · ${dashboard.classroom_label}` }}</h2>
+        <p class="hero-copy">{{ featuredActivity?.instructions ?? "进入当前课程后，沿着活动步骤完成作答、作品上传、互评和复盘。" }}</p>
       </div>
       <div class="hero-actions">
         <el-button round @click="router.push('/student/settings')">学生设置</el-button>
-        <el-button round @click="generalAssistantOpen = true">通用智能体</el-button>
       </div>
     </section>
 
-    <div class="stats-grid">
-      <StatCard
-        v-for="item in dashboard.quick_stats"
-        :key="item.title"
-        :title="item.title"
-        :value="item.value"
-        :hint="item.hint"
-      >
-        <template #icon>
-          <el-icon><component :is="studentStatIcon(item.title)" /></el-icon>
-        </template>
-      </StatCard>
-    </div>
-
     <el-tabs v-model="activeTab" class="workspace-tabs">
-      <el-tab-pane label="学习总览" name="overview">
+      <el-tab-pane label="我的概况" name="overview">
         <div class="workspace-grid workspace-grid--student-overview">
           <SectionCard eyebrow="整体表现" title="学生整体状况">
             <template #icon>
@@ -113,8 +96,8 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="课程目录" name="courses">
-        <div class="directory-layout directory-layout--student">
+      <el-tab-pane label="当前课程" name="courses">
+        <div class="directory-layout directory-layout--student directory-layout--immersive">
           <aside class="directory-sidebar">
             <div class="sidebar-head">
               <div>
@@ -148,9 +131,7 @@
                   <h3>{{ courseDetail.course.title }}</h3>
                   <p class="panel-note">{{ featuredActivity?.instructions ?? "当前课程暂无活动说明。" }}</p>
                 </div>
-                <div class="hero-actions">
-                  <el-button round @click="courseAssistantOpen = true">课程智能体</el-button>
-                </div>
+                <el-tag round effect="plain">{{ dashboard.total_score }} 分</el-tag>
               </div>
 
               <SectionCard v-if="featuredActivity" eyebrow="当前任务" title="本节课活动焦点">
@@ -501,15 +482,9 @@
     </el-tabs>
 
     <AssistantDrawer
-      v-if="dashboard"
-      v-model="generalAssistantOpen"
-      :assistant="dashboard.general_assistant"
-      @suggest="submissionMessage = $event"
-    />
-    <AssistantDrawer
-      v-if="courseDetail"
-      v-model="courseAssistantOpen"
-      :assistant="courseDetail.course_assistant"
+      v-if="activeAssistant"
+      v-model="assistantPinned"
+      :assistant="activeAssistant"
       @suggest="submissionMessage = $event"
     />
   </div>
@@ -523,9 +498,6 @@ import {
   Collection,
   Compass,
   DataAnalysis,
-  EditPen,
-  Finished,
-  Reading,
   Trophy,
   UploadFilled,
 } from "@element-plus/icons-vue";
@@ -535,7 +507,6 @@ import AssistantDrawer from "../components/AssistantDrawer.vue";
 import ChartPanelCard from "../components/ChartPanelCard.vue";
 import QuestionRenderer from "../components/QuestionRenderer.vue";
 import SectionCard from "../components/SectionCard.vue";
-import StatCard from "../components/StatCard.vue";
 import { useSessionStore } from "../stores/session";
 import type {
   ActivityTaskDescriptor,
@@ -550,10 +521,9 @@ const session = useSessionStore();
 const dashboard = ref<StudentDashboardResponse | null>(null);
 const courseDetail = ref<StudentCourseDetailResponse | null>(null);
 const selectedCourseId = ref<number | null>(null);
-const activeTab = ref("overview");
+const activeTab = ref("courses");
 const courseTab = ref("activities");
-const generalAssistantOpen = ref(false);
-const courseAssistantOpen = ref(false);
+const assistantPinned = ref(false);
 const courseLoading = ref(false);
 const submittingAssignmentId = ref<number | null>(null);
 const submittingWorkId = ref<number | null>(null);
@@ -618,6 +588,13 @@ const currentStudentWorkflowStep = computed(() => {
   return studentWorkflowSteps.value[studentWorkflowStep.value] ?? studentWorkflowSteps.value[0] ?? null;
 });
 
+const activeAssistant = computed(() => {
+  if (activeTab.value === "courses" && courseDetail.value) {
+    return courseDetail.value.course_assistant;
+  }
+  return dashboard.value?.general_assistant ?? null;
+});
+
 onMounted(async () => {
   if (session.user?.role === "student") {
     await loadDashboard();
@@ -680,6 +657,7 @@ async function loadCourseDetail(courseId: number) {
 function selectCourse(courseId: number) {
   selectedCourseId.value = courseId;
   activeTab.value = "courses";
+  assistantPinned.value = false;
 }
 
 function selectActivity(activityId: number) {
@@ -695,18 +673,9 @@ function prevStudentWorkflowStep() {
   studentWorkflowStep.value = Math.max(studentWorkflowStep.value - 1, 0);
 }
 
-function studentStatIcon(title: string) {
-  if (title.includes("总分") || title.includes("成绩")) {
-    return Trophy;
-  }
-  if (title.includes("课程")) {
-    return Reading;
-  }
-  if (title.includes("作业") || title.includes("活动")) {
-    return EditPen;
-  }
-  return Finished;
-}
+watch(activeTab, () => {
+  assistantPinned.value = false;
+});
 
 function ensureAnswers(activityId: number) {
   if (!activityAnswers[activityId]) {

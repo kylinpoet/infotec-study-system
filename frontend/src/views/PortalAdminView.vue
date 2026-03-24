@@ -49,6 +49,87 @@
           </el-form>
         </SectionCard>
 
+        <SectionCard eyebrow="大模型配置" title="AI 接口与模型参数">
+          <template #icon><el-icon><Setting /></el-icon></template>
+          <div class="workflow-panel workflow-panel--aside">
+            <div class="workflow-panel__head">
+              <div>
+                <p class="panel-kicker">模型连接</p>
+                <h4>{{ llmForm.model_name || "未配置模型" }}</h4>
+              </div>
+              <el-button type="primary" :loading="llmSaving" @click="handleSaveLlmConfig">保存模型配置</el-button>
+            </div>
+
+            <el-form label-position="top">
+              <el-form-item label="启用大模型">
+                <el-switch v-model="llmForm.is_enabled" active-text="启用" inactive-text="停用" />
+              </el-form-item>
+
+              <div class="workflow-grid">
+                <div class="workflow-panel">
+                  <el-form-item label="接口标识">
+                    <el-input
+                      v-model="llmForm.provider_name"
+                      placeholder="例如：OpenAI Compatible / DashScope / DeepSeek"
+                    />
+                  </el-form-item>
+                  <el-form-item label="Base URL">
+                    <el-input
+                      v-model="llmForm.base_url"
+                      placeholder="例如：https://api.openai.com/v1"
+                    />
+                  </el-form-item>
+                  <el-form-item label="API Key">
+                    <el-input
+                      v-model="llmForm.api_key"
+                      show-password
+                      placeholder="留空则保留当前密钥"
+                    />
+                  </el-form-item>
+                  <p class="panel-note">
+                    当前状态：{{ llmForm.has_api_key ? `已保存 ${llmForm.api_key_masked}` : "尚未保存 API Key" }}
+                  </p>
+                  <el-checkbox v-model="llmForm.clear_api_key">清空已保存的 API Key</el-checkbox>
+                </div>
+
+                <div class="workflow-panel">
+                  <el-form-item label="模型名称">
+                    <el-select
+                      v-model="llmForm.model_name"
+                      class="fill-button"
+                      filterable
+                      allow-create
+                      default-first-option
+                    >
+                      <el-option
+                        v-for="item in llmForm.model_options"
+                        :key="item.value"
+                        :label="item.provider_hint ? `${item.label} · ${item.provider_hint}` : item.label"
+                        :value="item.value"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="Temperature">
+                    <el-slider v-model="llmForm.temperature" :min="0" :max="2" :step="0.1" show-input />
+                  </el-form-item>
+                  <el-form-item label="Max Tokens">
+                    <el-input-number v-model="llmForm.max_tokens" :min="256" :max="32768" :step="256" class="fill-button" />
+                  </el-form-item>
+                </div>
+              </div>
+
+              <el-form-item label="补充说明">
+                <el-input
+                  v-model="llmForm.notes"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="例如：课程智能体允许联网，作业生成优先使用该模型。"
+                />
+              </el-form-item>
+            </el-form>
+          </div>
+        </SectionCard>
+
         <SectionCard eyebrow="学校资料" title="多校门户编辑">
           <template #icon><el-icon><School /></el-icon></template>
           <div class="course-activity-layout">
@@ -234,7 +315,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { Bell, Monitor, School, View } from "@element-plus/icons-vue";
+import { Bell, Monitor, School, Setting, View } from "@element-plus/icons-vue";
 
 import { api } from "../api/client";
 import SectionCard from "../components/SectionCard.vue";
@@ -251,6 +332,7 @@ const selectedAnnouncementId = ref<number | null>(null);
 const heroSaving = ref(false);
 const schoolSaving = ref(false);
 const announcementSaving = ref(false);
+const llmSaving = ref(false);
 
 const heroForm = reactive({
   hero_title: "",
@@ -274,6 +356,21 @@ const announcementForm = reactive({
   summary: "",
   published_at: "",
   is_active: true,
+});
+
+const llmForm = reactive({
+  provider_name: "",
+  base_url: "",
+  api_key: "",
+  api_key_masked: "",
+  has_api_key: false,
+  model_name: "",
+  model_options: [] as Array<{ label: string; value: string; provider_hint: string | null }>,
+  temperature: 0.4,
+  max_tokens: 4096,
+  is_enabled: false,
+  notes: "",
+  clear_api_key: false,
 });
 
 const selectedSchool = computed(() => {
@@ -308,6 +405,9 @@ function adminStatIcon(title: string) {
   if (title.includes("公告")) {
     return Bell;
   }
+  if (title.includes("模型")) {
+    return Setting;
+  }
   return Monitor;
 }
 
@@ -327,6 +427,7 @@ async function loadDashboard() {
   heroForm.featured_school_code = dashboard.value.hero.featured_school_code ?? dashboard.value.schools[0]?.code ?? "";
   selectedSchoolCode.value = selectedSchoolCode.value || dashboard.value.schools[0]?.code || "";
   syncSchoolForm();
+  syncLlmForm();
   prepareAnnouncement(dashboard.value.announcements[0] ?? null);
 }
 
@@ -354,6 +455,24 @@ function addFeature() {
 
 function addMetric() {
   schoolForm.metrics.push({ title: "", value: "", hint: "" });
+}
+
+function syncLlmForm() {
+  if (!dashboard.value) {
+    return;
+  }
+  llmForm.provider_name = dashboard.value.llm_config.provider_name;
+  llmForm.base_url = dashboard.value.llm_config.base_url;
+  llmForm.api_key = "";
+  llmForm.api_key_masked = dashboard.value.llm_config.api_key_masked ?? "";
+  llmForm.has_api_key = dashboard.value.llm_config.has_api_key;
+  llmForm.model_name = dashboard.value.llm_config.model_name;
+  llmForm.model_options = dashboard.value.llm_config.model_options.map((item) => ({ ...item }));
+  llmForm.temperature = dashboard.value.llm_config.temperature;
+  llmForm.max_tokens = dashboard.value.llm_config.max_tokens;
+  llmForm.is_enabled = dashboard.value.llm_config.is_enabled;
+  llmForm.notes = dashboard.value.llm_config.notes ?? "";
+  llmForm.clear_api_key = false;
 }
 
 async function handleSaveHero() {
@@ -399,6 +518,33 @@ async function handleSaveSchool() {
     ElMessage.error(error instanceof Error ? error.message : "保存失败");
   } finally {
     schoolSaving.value = false;
+  }
+}
+
+async function handleSaveLlmConfig() {
+  if (!session.user) {
+    return;
+  }
+  llmSaving.value = true;
+  try {
+    await api.updateLlmConfig({
+      admin_user_id: session.user.id,
+      provider_name: llmForm.provider_name.trim(),
+      base_url: llmForm.base_url.trim(),
+      api_key: llmForm.api_key.trim() || null,
+      clear_api_key: llmForm.clear_api_key,
+      model_name: llmForm.model_name.trim(),
+      temperature: llmForm.temperature,
+      max_tokens: llmForm.max_tokens,
+      is_enabled: llmForm.is_enabled,
+      notes: llmForm.notes.trim() || null,
+    });
+    ElMessage.success("大模型配置已保存");
+    await loadDashboard();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "保存失败");
+  } finally {
+    llmSaving.value = false;
   }
 }
 
