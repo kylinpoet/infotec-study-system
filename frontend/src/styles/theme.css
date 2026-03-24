@@ -1,9 +1,12 @@
 :root {
   color-scheme: light;
-  --el-color-primary: #2f6fed;
-  --el-color-primary-light-3: #5d8cf2;
-  --el-color-primary-light-5: #89aaf5;
-  --el-color-primary-light-7: #b7cbfa;
+  --theme-primary: #2f6fed;
+  --theme-secondary: #14b8a6;
+  --theme-accent: #f59e0b;
+  --el-color-primary: var(--theme-primary);
+  --el-color-primary-light-3: color-mix(in srgb, var(--theme-primary) 72%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--theme-primary) 52%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--theme-primary) 32%, white);
   --el-border-radius-base: 18px;
   --el-border-radius-round: 999px;
   --app-bg: #f3f6fb;
@@ -25,8 +28,8 @@ body {
   min-width: 360px;
   color: var(--app-text);
   background:
-    radial-gradient(circle at top left, rgba(47, 111, 237, 0.12), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(20, 184, 166, 0.1), transparent 24%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 28%),
+    radial-gradient(circle at bottom right, color-mix(in srgb, var(--theme-secondary) 12%, transparent), transparent 24%),
     linear-gradient(180deg, #f8fbff 0%, var(--app-bg) 100%);
 }
 
@@ -98,7 +101,7 @@ textarea {
 }
 
 .app-nav__link.router-link-active {
-  background: linear-gradient(135deg, #2f6fed, #1fb1b3);
+  background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
   color: #fff;
 }
 
@@ -141,7 +144,7 @@ textarea {
 
 .panel-kicker {
   margin: 0 0 8px;
-  color: #2f6fed;
+  color: var(--theme-primary);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -454,20 +457,20 @@ textarea {
   border: 1px solid rgba(215, 224, 236, 0.9);
   border-radius: 28px;
   background:
-    radial-gradient(circle at top right, rgba(47, 111, 237, 0.12), transparent 26%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 26%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(239, 247, 255, 0.94));
   box-shadow: var(--app-shadow);
 }
 
 .workspace-hero--teacher {
   background:
-    radial-gradient(circle at top right, rgba(47, 111, 237, 0.12), transparent 28%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 28%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(239, 245, 255, 0.96));
 }
 
 .workspace-hero--student {
   background:
-    radial-gradient(circle at top right, rgba(20, 184, 166, 0.14), transparent 30%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-secondary) 16%, transparent), transparent 30%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 250, 248, 0.96));
 }
 
@@ -498,7 +501,7 @@ textarea {
 }
 
 .workspace-tabs .el-tabs__item.is-active {
-  background: linear-gradient(135deg, rgba(47, 111, 237, 0.96), rgba(20, 184, 166, 0.88));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 96%, transparent), color-mix(in srgb, var(--theme-secondary) 88%, transparent));
   color: #fff;
 }
 
@@ -594,9 +597,9 @@ textarea {
 }
 
 .course-list-card--active {
-  border-color: rgba(47, 111, 237, 0.7);
-  background: linear-gradient(135deg, rgba(245, 249, 255, 0.96), rgba(238, 250, 248, 0.9));
-  box-shadow: 0 10px 24px rgba(47, 111, 237, 0.12);
+  border-color: color-mix(in srgb, var(--theme-primary) 70%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 8%, white), color-mix(in srgb, var(--theme-secondary) 10%, white));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--theme-primary) 12%, transparent);
 }
 
 .metric-inline {
@@ -682,7 +685,7 @@ textarea {
 }
 
 .analytics-tile--accent {
-  background: linear-gradient(135deg, rgba(47, 111, 237, 0.92), rgba(20, 184, 166, 0.82));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 92%, transparent), color-mix(in srgb, var(--theme-secondary) 82%, transparent));
 }
 
 .analytics-tile--accent span,
@@ -772,6 +775,182 @@ textarea {
   gap: 14px;
 }
 
+.app-toolbar,
+.theme-switcher,
+.activity-card__header,
+.activity-card__title,
+.activity-focus-card__head,
+.artifact-block__head,
+.submission-card__head,
+.assignment-stage__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-toolbar {
+  align-items: center;
+}
+
+.theme-switcher {
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(240, 244, 252, 0.9);
+}
+
+.theme-switcher__label {
+  color: var(--app-subtext);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.theme-switcher__select {
+  width: 210px;
+}
+
+.activity-card-list,
+.submission-grid,
+.review-queue,
+.review-note-list {
+  display: grid;
+  gap: 16px;
+}
+
+.activity-card,
+.activity-focus-card,
+.submission-card,
+.mini-stat-card,
+.review-note,
+.upload-shell,
+.assignment-stage {
+  border: 1px solid rgba(215, 224, 236, 0.82);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.activity-card,
+.activity-focus-card,
+.submission-card,
+.upload-shell,
+.assignment-stage {
+  padding: 18px;
+}
+
+.activity-card {
+  display: grid;
+  gap: 16px;
+}
+
+.activity-card__title h4,
+.activity-focus-card__head h4,
+.assignment-stage__head strong {
+  margin: 0;
+}
+
+.activity-metric-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mini-stat-card {
+  padding: 14px 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.mini-stat-card span {
+  color: var(--app-subtext);
+  font-size: 13px;
+}
+
+.mini-stat-card strong {
+  font-size: 1.2rem;
+}
+
+.activity-prompt-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.activity-focus-card {
+  margin-bottom: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-accent) 16%, transparent), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), color-mix(in srgb, var(--theme-primary) 8%, white));
+}
+
+.activity-focus-card--student {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-secondary) 18%, transparent), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), color-mix(in srgb, var(--theme-secondary) 10%, white));
+}
+
+.metric-inline--strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.artifact-block {
+  display: grid;
+  gap: 16px;
+}
+
+.submission-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.submission-card {
+  display: grid;
+  gap: 12px;
+}
+
+.submission-card--mine {
+  background: color-mix(in srgb, var(--theme-secondary) 6%, white);
+}
+
+.submission-asset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.submission-asset {
+  display: grid;
+  gap: 4px;
+  min-width: 160px;
+  padding: 12px 14px;
+  border: 1px solid rgba(215, 224, 236, 0.82);
+  border-radius: 16px;
+  background: rgba(245, 248, 255, 0.78);
+}
+
+.submission-asset small,
+.review-note p {
+  color: var(--app-subtext);
+}
+
+.review-note {
+  padding: 12px 14px;
+}
+
+.review-note p {
+  margin: 6px 0 0;
+  line-height: 1.6;
+}
+
+.review-form {
+  display: grid;
+  gap: 8px;
+}
+
+.upload-shell .el-upload-dragger {
+  border-radius: 20px;
+}
+
 .empty-page {
   display: grid;
   place-items: center;
@@ -809,7 +988,15 @@ textarea {
   .preview-summary,
   .info-list-item,
   .directory-content__head,
-  .sidebar-head {
+  .sidebar-head,
+  .app-toolbar,
+  .theme-switcher,
+  .activity-card__header,
+  .activity-card__title,
+  .activity-focus-card__head,
+  .artifact-block__head,
+  .submission-card__head,
+  .assignment-stage__head {
     flex-direction: column;
     align-items: flex-start;
   }
@@ -828,7 +1015,9 @@ textarea {
   .lab-summary-grid,
   .seat-grid,
   .course-overview-grid,
-  .student-summary-board {
+  .student-summary-board,
+  .activity-metric-grid,
+  .submission-grid {
     grid-template-columns: 1fr;
   }
 

@@ -32,6 +32,14 @@ TASK_TYPE_LABELS = {
 }
 
 
+def _is_past(value: datetime | None) -> bool:
+    if value is None:
+        return False
+    if value.tzinfo is None:
+        return value < datetime.now()
+    return value < datetime.now(UTC)
+
+
 def latest_revision_for_activity(activity_id: int, db: Session) -> ActivityRevision | None:
     return db.scalar(
         select(ActivityRevision)
@@ -236,11 +244,10 @@ def build_activity_task_descriptor(
     submission_count = len(attempts) if activity.type == "interactive_assignment" else len(submissions)
     target = _activity_submission_target(classroom_id, db)
 
-    now = datetime.now(UTC)
     status = "未发布"
     if publication:
         status = "进行中"
-        if publication.due_at and publication.due_at < now:
+        if _is_past(publication.due_at):
             status = "已截止"
     elif activity.is_published:
         status = "已准备"

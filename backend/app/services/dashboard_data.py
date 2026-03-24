@@ -188,14 +188,15 @@ def build_teacher_course_card(course: Course, db: Session, classroom_id: int | N
     activities = db.scalars(select(Activity).where(Activity.course_id == course.id).order_by(Activity.id.asc())).all()
     publications = course_publications(course.id, db, classroom_id)
     latest_publication = publications[0] if publications else None
+    latest_interactive_publication = latest_interactive_publication_for_course(course.id, db, classroom_id)
     latest_activity = None
     latest_submissions: list[WorkSubmission] = []
     latest_attempts: list[AssignmentAttempt] = []
     if latest_publication:
         revision = db.get(ActivityRevision, latest_publication.revision_id)
         latest_activity = db.get(Activity, revision.activity_id) if revision else None
-    if latest_activity and latest_activity.type == "interactive_assignment" and latest_publication:
-        latest_attempts = _attempts_for_publication(latest_publication.id, db)
+    if latest_interactive_publication:
+        latest_attempts = _attempts_for_publication(latest_interactive_publication.id, db)
     elif latest_activity:
         latest_submissions = work_submissions_for_activity(latest_activity.id, db, latest_publication.id if latest_publication else None)
     classroom = db.get(Classroom, classroom_id) if classroom_id else None

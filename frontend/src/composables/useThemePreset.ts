@@ -22,7 +22,7 @@ export const themePresets: ThemePreset[] = [
   {
     key: "campus-blue",
     name: "学校蓝",
-    description: "稳重、清爽，适合综合校园门户。",
+    description: "稳重、清爽，适合综合校园门户",
     colors: {
       primary: "#2F6FED",
       secondary: "#14B8A6",
@@ -37,7 +37,7 @@ export const themePresets: ThemePreset[] = [
   {
     key: "mint-tech",
     name: "青绿科技",
-    description: "更偏科技实验室气质，适合信息科技课程。",
+    description: "更偏信息科技实验室氛围",
     colors: {
       primary: "#0F766E",
       secondary: "#0EA5E9",
@@ -52,7 +52,7 @@ export const themePresets: ThemePreset[] = [
   {
     key: "sunset-campus",
     name: "暖橙校园",
-    description: "更有展板和成果展示氛围。",
+    description: "更有成果展板和校园展示气质",
     colors: {
       primary: "#C2410C",
       secondary: "#EAB308",
@@ -85,6 +85,7 @@ export function applyThemePreset(key: string) {
   root.style.setProperty("--app-line", preset.colors.line);
   root.style.setProperty("--app-text", preset.colors.text);
   root.style.setProperty("--app-subtext", preset.colors.subtext);
+  root.style.setProperty("--el-color-primary", preset.colors.primary);
   currentThemeKey.value = preset.key;
   localStorage.setItem(STORAGE_KEY, preset.key);
 }

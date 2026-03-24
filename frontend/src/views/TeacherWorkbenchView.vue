@@ -13,7 +13,7 @@
         <p class="panel-kicker">{{ dashboard.tenant_name }}</p>
         <h2>{{ dashboard.teacher_name }} · {{ dashboard.classroom_label }}</h2>
         <p class="hero-copy">
-          机房课堂态势、课程列表、课程生成和图表分析都集中在这里；作业预览、作业分析和 AI 作业工坊进入课程目录查看。
+          教师首页聚合机房状态、课程目录、生成课程和图表分析。进入课程目录后，再按活动任务查看交互作业、作品提交、互评回流和 AI 活动工坊。
         </p>
       </div>
       <div class="hero-actions">
@@ -67,18 +67,16 @@
                 <div class="lab-brief">
                   <p class="panel-kicker">课堂控制</p>
                   <p class="panel-note">
-                    当前机房继续保留 IP 锁定、班级密码和座位视图，保证真实课堂里的签到、作答和复核闭环。
+                    平台保留机房视图、IP 锁定和班级密码等老站特性，同时把作答、作品上传、互评和教师复核汇总到同一个教学闭环。
                   </p>
                 </div>
               </div>
               <div class="seat-grid">
                 <div v-for="seat in dashboard.lab_snapshot.seats" :key="seat.seat_no" class="seat-card">
-                  <span class="seat-card__index">#{{
-                    seat.seat_no.toString().padStart(2, "0")
-                  }}</span>
+                  <span class="seat-card__index">#{{ seat.seat_no.toString().padStart(2, "0") }}</span>
                   <strong>{{ seat.student_name }}</strong>
                   <el-tag size="small" round>{{ seat.status }}</el-tag>
-                  <p class="panel-note">{{ seat.score != null ? `${seat.score} 分` : "等待作答" }}</p>
+                  <p class="panel-note">{{ seat.score != null ? `${seat.score} 分` : "等待课堂任务" }}</p>
                 </div>
               </div>
             </div>
@@ -110,15 +108,11 @@
 
           <SectionCard eyebrow="图表分析" title="教师首页图表">
             <div class="chart-grid">
-              <ChartPanelCard
-                v-for="panel in dashboard.charts"
-                :key="panel.key"
-                :panel="panel"
-              />
+              <ChartPanelCard v-for="panel in dashboard.charts" :key="panel.key" :panel="panel" />
             </div>
           </SectionCard>
 
-          <SectionCard eyebrow="待处理" title="课堂待处理事项">
+          <SectionCard eyebrow="待处理" title="今日关注事项">
             <div class="info-list">
               <div v-for="item in dashboard.pending_items" :key="item.title" class="info-list-item">
                 <div>
@@ -174,79 +168,171 @@
                 </div>
               </div>
 
+              <SectionCard v-if="featuredActivity" eyebrow="活动焦点" title="当前课程任务焦点">
+                <div class="activity-focus-card">
+                  <div class="activity-focus-card__head">
+                    <div>
+                      <p class="panel-kicker">{{ featuredActivity.stage_label }}</p>
+                      <h4>{{ featuredActivity.title }}</h4>
+                    </div>
+                    <div class="hero-actions">
+                      <el-tag round>{{ featuredActivity.task_type_label }}</el-tag>
+                      <el-tag round effect="plain">{{ featuredActivity.status }}</el-tag>
+                    </div>
+                  </div>
+                  <p class="panel-note">{{ featuredActivity.instructions }}</p>
+                  <div class="metric-inline metric-inline--strong">
+                    <span>完成 {{ featuredActivity.submission_count }}/{{ featuredActivity.submission_target || "--" }}</span>
+                    <span>评价 {{ featuredActivity.review_count }}</span>
+                    <span v-if="featuredActivity.average_score != null">自动均分 {{ featuredActivity.average_score }}</span>
+                    <span v-if="featuredActivity.average_review_score != null">互评均分 {{ featuredActivity.average_review_score }}</span>
+                    <span>截止 {{ formatDateTime(featuredActivity.due_at) }}</span>
+                  </div>
+                </div>
+              </SectionCard>
+
               <el-tabs v-model="courseTab">
-                <el-tab-pane label="作业预览" name="preview">
+                <el-tab-pane label="活动任务" name="activities">
                   <div class="detail-stack">
-                    <SectionCard eyebrow="作业概览" title="当前作业预览">
-                      <template v-if="currentPreview">
-                        <div class="preview-summary">
-                          <div>
-                            <strong>{{ currentPreview.title }}</strong>
-                            <p class="panel-note">{{ currentPreview.instructions }}</p>
-                          </div>
-                          <el-space wrap>
-                            <el-tag round>题目 {{ currentPreview.question_count }}</el-tag>
-                            <el-tag round effect="plain">提交 {{ currentPreview.submission_count }}</el-tag>
-                            <el-tag round effect="plain">均分 {{ currentPreview.average_score }}</el-tag>
-                          </el-space>
-                        </div>
-
-                        <div class="tag-row">
-                          <el-tag
-                            v-for="component in currentPreview.component_whitelist"
-                            :key="component"
-                            round
-                            effect="plain"
-                          >
-                            {{ component }}
-                          </el-tag>
-                        </div>
-
-                        <div class="question-preview-list" v-if="currentSpec">
-                          <div v-for="question in currentSpec.questions" :key="question.key" class="question-preview-item">
-                            <div class="question-preview-item__head">
-                              <strong>{{ question.stem }}</strong>
-                              <el-tag type="warning" effect="plain" round>{{ question.points }} 分</el-tag>
+                    <SectionCard eyebrow="活动任务流" title="课程按活动任务展开">
+                      <div class="activity-card-list">
+                        <article v-for="activity in courseDetail.activities" :key="activity.id" class="activity-card">
+                          <div class="activity-card__header">
+                            <div>
+                              <p class="panel-kicker">{{ activity.stage_label }}</p>
+                              <div class="activity-card__title">
+                                <h4>{{ activity.title }}</h4>
+                                <el-tag round>{{ activity.task_type_label }}</el-tag>
+                              </div>
                             </div>
-                            <p class="panel-note">{{ question.type }} · {{ question.options.join(" / ") }}</p>
+                            <el-tag round effect="plain">{{ activity.status }}</el-tag>
                           </div>
-                        </div>
-                      </template>
-                      <p v-else class="panel-note">该课程还没有生成作业，可以直接切到「AI 作业工坊」生成第一份作业。</p>
+
+                          <p class="panel-note">{{ activity.instructions }}</p>
+
+                          <div class="tag-row" v-if="activity.deliverable || activity.due_at">
+                            <el-tag v-if="activity.deliverable" round effect="plain">成果：{{ activity.deliverable }}</el-tag>
+                            <el-tag v-if="activity.due_at" round effect="plain">截止：{{ formatDateTime(activity.due_at) }}</el-tag>
+                            <el-tag round effect="plain">完成 {{ activity.submission_count }}/{{ activity.submission_target || "--" }}</el-tag>
+                            <el-tag v-if="activity.review_enabled" round effect="plain">互评 {{ activity.review_count }}</el-tag>
+                          </div>
+
+                          <div class="activity-metric-grid">
+                            <div class="mini-stat-card">
+                              <span>活动状态</span>
+                              <strong>{{ activity.status }}</strong>
+                            </div>
+                            <div class="mini-stat-card">
+                              <span>交互题量</span>
+                              <strong>{{ activity.question_count }}</strong>
+                            </div>
+                            <div class="mini-stat-card">
+                              <span>自动均分</span>
+                              <strong>{{ activity.average_score ?? "--" }}</strong>
+                            </div>
+                            <div class="mini-stat-card">
+                              <span>评价均分</span>
+                              <strong>{{ activity.average_review_score ?? "--" }}</strong>
+                            </div>
+                          </div>
+
+                          <div v-if="activity.prompt_starters.length" class="activity-prompt-list">
+                            <el-button
+                              v-for="prompt in activity.prompt_starters"
+                              :key="prompt"
+                              text
+                              class="assistant-suggestion"
+                              @click="applySuggestion(prompt)"
+                            >
+                              {{ prompt }}
+                            </el-button>
+                          </div>
+
+                          <div v-if="activity.spec?.questions?.length" class="question-preview-list">
+                            <div v-for="question in activity.spec.questions" :key="question.key" class="question-preview-item">
+                              <div class="question-preview-item__head">
+                                <strong>{{ question.stem }}</strong>
+                                <el-tag type="warning" effect="plain" round>{{ question.points }} 分</el-tag>
+                              </div>
+                              <p class="panel-note">{{ question.type }} · {{ question.options.join(" / ") || "开放回答" }}</p>
+                            </div>
+                          </div>
+
+                          <div v-if="activity.accepted_file_types.length" class="artifact-block">
+                            <div class="artifact-block__head">
+                              <strong>作品提交与评价</strong>
+                              <div class="tag-row">
+                                <el-tag v-for="item in activity.accepted_file_types" :key="item" round effect="plain">{{ item }}</el-tag>
+                              </div>
+                            </div>
+
+                            <div v-if="activity.rubric_items.length" class="tag-row">
+                              <el-tag v-for="item in activity.rubric_items" :key="item" round>{{ item }}</el-tag>
+                            </div>
+
+                            <div class="submission-grid" v-if="activity.recent_submissions.length">
+                              <article v-for="submission in activity.recent_submissions" :key="submission.id" class="submission-card">
+                                <div class="submission-card__head">
+                                  <div>
+                                    <strong>{{ submission.headline || "学生作品" }}</strong>
+                                    <p class="panel-note">{{ submission.student_name }} · {{ formatDateTime(submission.submitted_at) }}</p>
+                                  </div>
+                                  <el-tag round effect="plain">
+                                    {{ submission.average_review_score != null ? `${submission.average_review_score} 分` : `${submission.review_count} 条评价` }}
+                                  </el-tag>
+                                </div>
+                                <p class="panel-note">{{ submission.summary || "学生已提交作品，等待进一步评价。" }}</p>
+                                <div class="submission-asset-list">
+                                  <a
+                                    v-for="asset in submission.assets"
+                                    :key="asset.id"
+                                    class="submission-asset"
+                                    :href="asset.file_url"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    <span>{{ asset.file_name }}</span>
+                                    <small>{{ asset.media_kind }}</small>
+                                  </a>
+                                </div>
+                                <div v-if="submission.reviews.length" class="review-note-list">
+                                  <div v-for="review in submission.reviews" :key="review.id" class="review-note">
+                                    <strong>{{ review.reviewer_name }} · {{ review.score }} 分</strong>
+                                    <p>{{ review.comment }}</p>
+                                  </div>
+                                </div>
+                              </article>
+                            </div>
+                          </div>
+                        </article>
+                      </div>
                     </SectionCard>
                   </div>
                 </el-tab-pane>
 
-                <el-tab-pane label="作业分析" name="analytics">
+                <el-tab-pane label="课程分析" name="analytics">
                   <div class="detail-stack">
-                    <SectionCard eyebrow="分析概览" title="作业分析">
-                      <template v-if="courseDetail.analytics">
-                        <div class="analytics-strip">
-                          <div class="analytics-tile">
-                            <span>提交人数</span>
-                            <strong>{{ courseDetail.analytics.submission_count }}</strong>
-                          </div>
-                          <div class="analytics-tile">
-                            <span>平均成绩</span>
-                            <strong>{{ courseDetail.analytics.average_score }}</strong>
-                          </div>
-                          <div class="analytics-tile">
-                            <span>平均用时</span>
-                            <strong>{{ courseDetail.analytics.average_duration_min ?? "--" }} 分钟</strong>
-                          </div>
+                    <SectionCard eyebrow="分析概览" title="活动与作业分析">
+                      <div class="analytics-strip">
+                        <div class="analytics-tile">
+                          <span>活动数量</span>
+                          <strong>{{ courseDetail.activities.length }}</strong>
                         </div>
-                        <div class="chart-grid">
-                          <ChartPanelCard
-                            v-for="panel in courseDetail.charts"
-                            :key="panel.key"
-                            :panel="panel"
-                          />
+                        <div class="analytics-tile">
+                          <span>最新交互作业均分</span>
+                          <strong>{{ courseDetail.analytics?.average_score ?? "--" }}</strong>
                         </div>
-                      </template>
-                      <p v-else class="panel-note">该课程暂无发布中的作业分析数据。</p>
+                        <div class="analytics-tile">
+                          <span>最近提交回流</span>
+                          <strong>{{ courseDetail.recent_submissions.length }}</strong>
+                        </div>
+                      </div>
+                      <div class="chart-grid">
+                        <ChartPanelCard v-for="panel in courseDetail.charts" :key="panel.key" :panel="panel" />
+                      </div>
                     </SectionCard>
 
-                    <SectionCard eyebrow="提交回流" title="最近提交">
+                    <SectionCard eyebrow="最近回流" title="作业与作品最近提交">
                       <div class="info-list">
                         <div
                           v-for="item in courseDetail.recent_submissions"
@@ -264,9 +350,9 @@
                   </div>
                 </el-tab-pane>
 
-                <el-tab-pane label="AI 作业工坊" name="studio">
+                <el-tab-pane label="AI 活动工坊" name="studio">
                   <div class="detail-stack">
-                    <SectionCard eyebrow="AI 作业工坊" title="生成交互式作业">
+                    <SectionCard eyebrow="AI 活动工坊" title="生成交互作业任务">
                       <el-form label-position="top">
                         <el-form-item label="作业标题">
                           <el-input v-model="draftTitle" placeholder="请输入作业标题" />
@@ -277,7 +363,7 @@
                         <el-form-item label="参考资料">
                           <el-input
                             v-model="resourceNames"
-                            placeholder="教材页、PPT、示例截图，使用中文逗号分隔"
+                            placeholder="教材页、PPT、案例截图，使用中文逗号分隔"
                           />
                         </el-form-item>
                         <el-form-item label="题型白名单">
@@ -302,13 +388,9 @@
                         </el-form-item>
                         <div class="hero-actions">
                           <el-button type="primary" :loading="draftLoading" @click="handleGenerateDraft">
-                            生成 AI 作业
+                            生成 AI 活动
                           </el-button>
-                          <el-button
-                            :disabled="!generatedDraft"
-                            :loading="publishLoading"
-                            @click="handlePublishDraft"
-                          >
+                          <el-button :disabled="!generatedDraft" :loading="publishLoading" @click="handlePublishDraft">
                             发布到当前班级
                           </el-button>
                         </div>
@@ -316,7 +398,7 @@
                       <p v-if="draftHint" class="status-text">{{ draftHint }}</p>
                     </SectionCard>
 
-                    <SectionCard eyebrow="草案预览" title="最新生成草案">
+                    <SectionCard eyebrow="草案预览" title="最新生成结果">
                       <template v-if="generatedDraft">
                         <div class="preview-summary">
                           <div>
@@ -325,17 +407,29 @@
                           </div>
                           <el-tag type="success" round>待教师审核</el-tag>
                         </div>
+                        <div class="tag-row">
+                          <el-tag
+                            v-for="component in generatedDraft.spec.component_whitelist"
+                            :key="component"
+                            round
+                            effect="plain"
+                          >
+                            {{ component }}
+                          </el-tag>
+                        </div>
                         <div class="question-preview-list">
                           <div v-for="question in generatedDraft.spec.questions" :key="question.key" class="question-preview-item">
                             <div class="question-preview-item__head">
                               <strong>{{ question.stem }}</strong>
                               <el-tag type="warning" effect="plain" round>{{ question.points }} 分</el-tag>
                             </div>
-                            <p class="panel-note">{{ question.type }} · {{ question.options.join(" / ") }}</p>
+                            <p class="panel-note">{{ question.type }} · {{ question.options.join(" / ") || "开放回答" }}</p>
                           </div>
                         </div>
                       </template>
-                      <p v-else class="panel-note">生成后会在这里显示结构化作业草案，教师确认后再发布。</p>
+                      <p v-else class="panel-note">
+                        生成后会在这里展示结构化活动草案，教师确认后再发布到课程活动流中。
+                      </p>
                     </SectionCard>
                   </div>
                 </el-tab-pane>
@@ -380,10 +474,7 @@
           <el-input v-model="createCourseForm.summary" type="textarea" :rows="3" />
         </el-form-item>
         <el-form-item>
-          <el-switch
-            v-model="createCourseForm.create_course_agent"
-            active-text="同时创建课程专属智能体"
-          />
+          <el-switch v-model="createCourseForm.create_course_agent" active-text="同时创建课程专属智能体" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -399,7 +490,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, onMounted, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 
@@ -409,7 +500,12 @@ import ChartPanelCard from "../components/ChartPanelCard.vue";
 import SectionCard from "../components/SectionCard.vue";
 import StatCard from "../components/StatCard.vue";
 import { useSessionStore } from "../stores/session";
-import type { ActivityDraftResponse, TeacherCourseDetailResponse, TeacherDashboardResponse } from "../types/contracts";
+import type {
+  ActivityDraftResponse,
+  ActivityTaskDescriptor,
+  TeacherCourseDetailResponse,
+  TeacherDashboardResponse,
+} from "../types/contracts";
 
 const router = useRouter();
 const session = useSessionStore();
@@ -418,7 +514,7 @@ const dashboard = ref<TeacherDashboardResponse | null>(null);
 const courseDetail = ref<TeacherCourseDetailResponse | null>(null);
 const selectedCourseId = ref<number | null>(null);
 const activeTab = ref("overview");
-const courseTab = ref("preview");
+const courseTab = ref("activities");
 const generalAssistantOpen = ref(false);
 const courseAssistantOpen = ref(false);
 const courseLoading = ref(false);
@@ -431,45 +527,30 @@ const generatedDraftCourseId = ref<number | null>(null);
 const publishDueAt = ref<string | null>(null);
 const draftHint = ref("");
 
-const draftTitle = ref("AI 交互作业：人工智能应用判断");
-const learningGoal = ref("理解人工智能在课堂任务中的合理应用边界，并能判断何时需要人工复核。");
-const resourceNames = ref("教材页、课堂 PPT、案例截图");
+const draftTitle = ref("AI 交互作业：信息科技场景判断");
+const learningGoal = ref("理解人工智能在信息科技课堂中的合理应用边界，并能根据活动目标设计交互作业。");
+const resourceNames = ref("教材页、课堂 PPT、示例截图");
 const selectedComponents = ref<string[]>(["single_choice", "sequence", "hotspot"]);
 
 const createCourseForm = reactive({
-  title: "八下第二单元 第1课 数据与可视化表达",
+  title: "八下第二单元 第 4 课 数据与可视化表达",
   subject: "信息科技",
   grade_scope: "八年级",
   term: "2025-2026 下",
   lesson_no: "L04",
   summary: "围绕数据采集、图表阅读与表达设计课程。",
-  create_course_agent: true
+  create_course_agent: true,
 });
 
-const currentPreview = computed(() => {
-  if (generatedDraft.value && generatedDraftCourseId.value === selectedCourseId.value) {
-    return {
-      activity_id: generatedDraft.value.activity_id,
-      publication_id: null,
-      title: generatedDraft.value.spec.title,
-      instructions: generatedDraft.value.spec.instructions,
-      question_count: generatedDraft.value.spec.questions.length,
-      component_whitelist: generatedDraft.value.spec.component_whitelist,
-      published_at: null,
-      due_at: null,
-      submission_count: 0,
-      average_score: 0,
-      auto_generated: true
-    };
+const featuredActivity = computed<ActivityTaskDescriptor | null>(() => {
+  if (!courseDetail.value) {
+    return null;
   }
-  return courseDetail.value?.assignment_preview ?? null;
-});
-
-const currentSpec = computed(() => {
-  if (generatedDraft.value && generatedDraftCourseId.value === selectedCourseId.value) {
-    return generatedDraft.value.spec;
-  }
-  return courseDetail.value?.latest_spec ?? null;
+  return (
+    courseDetail.value.activities.find((item) => item.id === courseDetail.value?.featured_activity_id) ??
+    courseDetail.value.activities[0] ??
+    null
+  );
 });
 
 onMounted(async () => {
@@ -514,8 +595,11 @@ async function loadCourseDetail(courseId: number) {
   courseLoading.value = true;
   try {
     courseDetail.value = await api.getTeacherCourseDetail(courseId);
-    if (!generatedDraftCourseId.value || generatedDraftCourseId.value !== courseId) {
+    courseTab.value = "activities";
+    if (generatedDraftCourseId.value !== courseId) {
+      generatedDraft.value = null;
       draftHint.value = "";
+      publishDueAt.value = null;
     }
   } finally {
     courseLoading.value = false;
@@ -527,6 +611,62 @@ function selectCourse(courseId: number) {
   activeTab.value = "courses";
 }
 
+async function handleGenerateDraft() {
+  if (!session.user || !selectedCourseId.value) {
+    return;
+  }
+  draftLoading.value = true;
+  draftHint.value = "";
+  try {
+    generatedDraft.value = await api.generateDraft({
+      course_id: selectedCourseId.value,
+      teacher_user_id: session.user.id,
+      title: draftTitle.value || undefined,
+      learning_goal: learningGoal.value,
+      resource_names: resourceNames.value
+        .split(/[，,]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+      component_whitelist: selectedComponents.value,
+    });
+    generatedDraftCourseId.value = selectedCourseId.value;
+    courseTab.value = "studio";
+    draftHint.value = "AI 已生成活动草案，你可以继续调整后再发布。";
+    ElMessage.success("AI 活动草案已生成");
+  } catch (error) {
+    draftHint.value = error instanceof Error ? error.message : "生成失败";
+    ElMessage.error(draftHint.value);
+  } finally {
+    draftLoading.value = false;
+  }
+}
+
+async function handlePublishDraft() {
+  if (!session.user || !dashboard.value || !generatedDraft.value) {
+    return;
+  }
+  publishLoading.value = true;
+  try {
+    const response = await api.publishDraft({
+      revision_id: generatedDraft.value.revision_id,
+      classroom_id: dashboard.value.lab_snapshot.classroom_id,
+      published_by_user_id: session.user.id,
+      due_at: publishDueAt.value,
+    });
+    draftHint.value = `活动已发布到当前班级，发布编号 ${response.publication_id}。`;
+    ElMessage.success("活动已发布");
+    await loadDashboard();
+    if (selectedCourseId.value) {
+      await loadCourseDetail(selectedCourseId.value);
+    }
+  } catch (error) {
+    draftHint.value = error instanceof Error ? error.message : "发布失败";
+    ElMessage.error(draftHint.value);
+  } finally {
+    publishLoading.value = false;
+  }
+}
+
 async function handleCreateCourse() {
   if (!session.user) {
     return;
@@ -535,7 +675,13 @@ async function handleCreateCourse() {
   try {
     const response = await api.createCourse({
       teacher_user_id: session.user.id,
-      ...createCourseForm
+      title: createCourseForm.title,
+      subject: createCourseForm.subject,
+      grade_scope: createCourseForm.grade_scope,
+      term: createCourseForm.term,
+      lesson_no: createCourseForm.lesson_no,
+      summary: createCourseForm.summary,
+      create_course_agent: createCourseForm.create_course_agent,
     });
     ElMessage.success(response.message);
     createCourseDialog.value = false;
@@ -549,80 +695,20 @@ async function handleCreateCourse() {
   }
 }
 
-async function handleGenerateDraft() {
-  if (!session.user || !selectedCourseId.value) {
-    return;
-  }
-  draftLoading.value = true;
-  try {
-    generatedDraft.value = await api.generateDraft({
-      course_id: selectedCourseId.value,
-      teacher_user_id: session.user.id,
-      title: draftTitle.value,
-      learning_goal: learningGoal.value,
-      resource_names: resourceNames.value.split(/[，,]/).map((item) => item.trim()).filter(Boolean),
-      component_whitelist: selectedComponents.value
-    });
-    generatedDraftCourseId.value = selectedCourseId.value;
-    draftHint.value = "草案已生成，可继续预览并发布到当前班级。";
-    courseTab.value = "studio";
-    ElMessage.success("AI 作业草案生成完成");
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "生成作业失败");
-  } finally {
-    draftLoading.value = false;
-  }
-}
-
-async function handlePublishDraft() {
-  if (!generatedDraft.value || !dashboard.value || !session.user) {
-    return;
-  }
-  publishLoading.value = true;
-  try {
-    await api.publishDraft({
-      revision_id: generatedDraft.value.revision_id,
-      classroom_id: dashboard.value.lab_snapshot.classroom_id,
-      published_by_user_id: session.user.id,
-      due_at: publishDueAt.value
-    });
-    ElMessage.success("作业已发布到当前班级");
-    generatedDraft.value = null;
-    generatedDraftCourseId.value = null;
-    publishDueAt.value = null;
-    draftHint.value = "已发布成功，课程目录中的作业分析会在学生提交后自动更新。";
-    await loadDashboard();
-    if (selectedCourseId.value) {
-      await loadCourseDetail(selectedCourseId.value);
-      courseTab.value = "preview";
-    }
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : "发布失败");
-  } finally {
-    publishLoading.value = false;
-  }
-}
-
 function applySuggestion(suggestion: string) {
-  if (suggestion.includes("讲评")) {
-    learningGoal.value = "基于本课程最近一次作业结果，生成讲评提纲并补足易错知识点训练。";
-  }
-  if (suggestion.includes("基础题")) {
-    selectedComponents.value = ["single_choice", "sequence", "hotspot"];
-  }
   draftHint.value = suggestion;
-  ElMessage.success("已把智能体建议应用到当前操作上下文");
+  ElMessage.info(`智能体建议：${suggestion}`);
 }
 
 function formatDateTime(value: string | null) {
   if (!value) {
-    return "--";
+    return "待定";
   }
   return new Intl.DateTimeFormat("zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   }).format(new Date(value));
 }
 </script>

@@ -40,13 +40,16 @@ from app.schemas.contracts import (
     TeacherDashboardResponse,
 )
 from app.services.activity_generator import build_activity_spec
-from app.services.activity_tasks import build_activity_task_descriptor, build_submission_descriptor
+from app.services.activity_tasks import (
+    build_activity_task_descriptor,
+    build_submission_descriptor,
+    latest_interactive_publication_for_course,
+)
 from app.services.dashboard_data import (
     build_agent_cards,
     build_analytics,
     build_assignment_preview,
     build_teacher_course_card,
-    latest_publication_for_course,
 )
 
 router = APIRouter()
@@ -101,7 +104,7 @@ def _build_lab_snapshot(
             seats=[],
         )
 
-    publication = latest_publication_for_course(course_id, db, classroom.id) if course_id else None
+    publication = latest_interactive_publication_for_course(course_id, db, classroom.id) if course_id else None
     profiles = db.scalars(
         select(StudentProfile)
         .where(StudentProfile.classroom_id == classroom.id)
@@ -223,7 +226,7 @@ def get_teacher_dashboard(user_id: int, db: Session = Depends(get_db)):
         .where(AIAgent.scope_type == "course")
     ) or 0
     latest_publication = (
-        latest_publication_for_course(current_course_id, db, classroom.id if classroom else None)
+        latest_interactive_publication_for_course(current_course_id, db, classroom.id if classroom else None)
         if current_course_id
         else None
     )
