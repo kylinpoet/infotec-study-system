@@ -1,19 +1,27 @@
+import base64
+import binascii
 from datetime import UTC, datetime
+from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    Activity,
     ActivityPublication,
     ActivityRevision,
     AssignmentAnswer,
     AssignmentAttempt,
     Classroom,
     Course,
+    SubmissionAsset,
+    SubmissionReview,
     StudentProfile,
     Tenant,
     User,
+    WorkSubmission,
 )
 from app.db.session import get_db
 from app.schemas.contracts import (
@@ -27,8 +35,19 @@ from app.schemas.contracts import (
     ChartPanel,
     FeedbackItem,
     QuickStat,
+    SubmissionReviewRequest,
+    SubmissionReviewResponse,
     StudentCourseDetailResponse,
     StudentDashboardResponse,
+    WorkSubmissionCreateRequest,
+    WorkSubmissionResponse,
+)
+from app.core.config import UPLOAD_DIR
+from app.services.activity_tasks import (
+    build_activity_task_descriptor,
+    build_review_descriptor,
+    build_submission_descriptor,
+    resolve_activity_spec,
 )
 from app.services.dashboard_data import (
     build_agent_cards,
@@ -94,6 +113,56 @@ def _student_course_assistant(course: Course, db: Session) -> AssistantDescripto
         allow_external_sources=True,
         external_sources_note="课程智能体仅使用课程上下文和白名单外部来源，回答过程会被记录审计。",
     )
+
+
+def _decode_data_url(data_url: str) -> bytes:
+    if "," not in data_url:
+        raise HTTPException(status_code=400, detail="上传内容格式不正确。")
+    _, encoded = data_url.split(",", 1)
+    try:
+        return base64.b64decode(encoded)
+    except binascii.Error as exc:
+        raise HTTPException(status_code=400, detail="上传文件编码损坏。") from exc
+
+
+def _guess_media_kind(file_type: str) -> str:
+    if file_type.startswith("image/"):
+        return "image"
+    if "pdf" in file_type or "word" in file_type or "presentation" in file_type or "sheet" in file_type or "text" in file_type:
+        return "document"
+    return "file"
+
+
+def _save_submission_assets(
+    *,
+    submission_id: int,
+    tenant_id: int,
+    activity_id: int,
+    assets: list,
+    db: Session,
+):
+    target_dir = UPLOAD_DIR / f"tenant-{tenant_id}" / f"activity-{activity_id}" / f"submission-{submission_id}"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    for index, asset in enumerate(assets, start=1):
+        file_name = Path(asset.file_name).name or f"asset-{index}"
+        file_bytes = _decode_data_url(asset.data_url)
+        stored_name = f"{index:02d}-{uuid4().hex[:8]}-{file_name}"
+        file_path = target_dir / stored_name
+        file_path.write_bytes(file_bytes)
+        file_url = f"/api/v1/public/uploads/tenant-{tenant_id}/activity-{activity_id}/submission-{submission_id}/{stored_name}"
+        media_kind = _guess_media_kind(asset.file_type)
+        db.add(
+            SubmissionAsset(
+                submission_id=submission_id,
+                file_name=file_name,
+                file_type=asset.file_type,
+                media_kind=media_kind,
+                file_url=file_url,
+                preview_url=file_url if media_kind == "image" else None,
+                size_kb=max(1, round(len(file_bytes) / 1024)),
+            )
+        )
 
 
 @router.get("/dashboard/{user_id}", response_model=StudentDashboardResponse)
@@ -206,6 +275,25 @@ def get_student_course_detail(course_id: int, user_id: int, db: Session = Depend
         db=db,
     )
     preview, spec, publication = build_assignment_preview(course.id, db, profile.classroom_id)
+    activity_rows = db.scalars(
+        select(Activity)
+        .where(Activity.course_id == course.id)
+        .order_by(Activity.id.asc())
+    ).all()
+    activities = [
+        build_activity_task_descriptor(
+            activity,
+            db,
+            classroom_id=profile.classroom_id,
+            student_id=user.id,
+            stage_index=index,
+        )
+        for index, activity in enumerate(activity_rows, start=1)
+    ]
+    featured_activity = next(
+        (item for item in activities if item.status in {"待作答", "待提交", "进行中"}),
+        activities[0] if activities else None,
+    )
 
     recent_feedback = []
     publications = course_publications(course.id, db, profile.classroom_id)
@@ -232,12 +320,39 @@ def get_student_course_detail(course_id: int, user_id: int, db: Session = Depend
                 content=f"最近一次自动评分 {attempt.auto_score or 0} 分，可在课程目录中继续查看题目预览与复习建议。",
             )
         )
+    own_submissions = db.scalars(
+        select(WorkSubmission)
+        .join(Activity, WorkSubmission.activity_id == Activity.id)
+        .where(Activity.course_id == course.id)
+        .where(WorkSubmission.student_id == user.id)
+        .order_by(WorkSubmission.submitted_at.desc(), WorkSubmission.id.desc())
+        .limit(3)
+    ).all()
+    for submission in own_submissions:
+        descriptor = build_submission_descriptor(submission, db, review_limit=2)
+        if descriptor.reviews:
+            latest_review = descriptor.reviews[0]
+            recent_feedback.append(
+                FeedbackItem(
+                    title=descriptor.headline or "作品互评反馈",
+                    content=f"{latest_review.reviewer_name} 给出 {latest_review.score} 分：{latest_review.comment}",
+                )
+            )
+        elif descriptor.review_count == 0:
+            recent_feedback.append(
+                FeedbackItem(
+                    title=descriptor.headline or "作品上传",
+                    content="作品已提交，等待教师或同伴完成评价后会回流到这里。",
+                )
+            )
 
     return StudentCourseDetailResponse(
         course=course_card,
+        featured_activity_id=featured_activity.id if featured_activity else None,
         assignment_preview=preview,
         latest_spec=spec,
         current_publication_id=publication.id if publication else None,
+        activities=activities,
         recent_feedback=recent_feedback,
         course_assistant=_student_course_assistant(course, db),
     )
@@ -311,4 +426,97 @@ def submit_attempt(attempt_id: int, payload: AttemptSubmitRequest, db: Session =
         correct_count=grading["correct_count"],
         total_questions=len(spec.questions),
         feedback="作答已提交，课程目录中的作业分析与学生总览图表会自动刷新。",
+    )
+
+
+@router.post("/activities/{activity_id}/submissions", response_model=WorkSubmissionResponse)
+def create_work_submission(activity_id: int, payload: WorkSubmissionCreateRequest, db: Session = Depends(get_db)):
+    user, profile, _, _ = _get_student(payload.student_user_id, db)
+    activity = db.get(Activity, activity_id)
+    if not activity:
+        raise HTTPException(status_code=404, detail="活动不存在。")
+
+    course = db.get(Course, activity.course_id)
+    if not course or course.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=404, detail="课程不存在。")
+
+    _, activity_spec, activity_publication = resolve_activity_spec(activity, db, profile.classroom_id)
+    if not activity_spec or not activity_spec.accepted_file_types:
+        raise HTTPException(status_code=400, detail="当前活动不支持作品提交。")
+    if not payload.assets:
+        raise HTTPException(status_code=400, detail="请至少上传一个文件。")
+
+    submission = WorkSubmission(
+        activity_id=activity.id,
+        publication_id=activity_publication.id if activity_publication else None,
+        student_id=user.id,
+        headline=payload.headline,
+        summary=payload.summary,
+        status="submitted",
+        submitted_at=datetime.now(UTC),
+        overall_score=None,
+    )
+    db.add(submission)
+    db.flush()
+    _save_submission_assets(
+        submission_id=submission.id,
+        tenant_id=user.tenant_id,
+        activity_id=activity.id,
+        assets=payload.assets,
+        db=db,
+    )
+    db.commit()
+    db.refresh(submission)
+
+    return WorkSubmissionResponse(
+        submission=build_submission_descriptor(submission, db),
+        message="作品已提交，教师端和课程评价面板会同步刷新。",
+    )
+
+
+@router.post("/submissions/{submission_id}/reviews", response_model=SubmissionReviewResponse)
+def create_submission_review(submission_id: int, payload: SubmissionReviewRequest, db: Session = Depends(get_db)):
+    reviewer, _, _, _ = _get_student(payload.reviewer_user_id, db)
+    submission = db.get(WorkSubmission, submission_id)
+    if not submission:
+        raise HTTPException(status_code=404, detail="作品不存在。")
+    if submission.student_id == reviewer.id:
+        raise HTTPException(status_code=400, detail="不能评价自己的作品。")
+
+    activity = db.get(Activity, submission.activity_id)
+    course = db.get(Course, activity.course_id) if activity else None
+    if not activity or not course or course.tenant_id != reviewer.tenant_id:
+        raise HTTPException(status_code=404, detail="课程不存在。")
+
+    existing = db.scalar(
+        select(SubmissionReview)
+        .where(SubmissionReview.submission_id == submission.id)
+        .where(SubmissionReview.reviewer_id == reviewer.id)
+        .limit(1)
+    )
+    if existing:
+        existing.score = payload.score
+        existing.comment = payload.comment
+        existing.tags_json = payload.tags
+        existing.reviewed_at = datetime.now(UTC)
+        existing.reviewer_role = "student"
+        review = existing
+    else:
+        review = SubmissionReview(
+            submission_id=submission.id,
+            reviewer_id=reviewer.id,
+            reviewer_role="student",
+            score=payload.score,
+            comment=payload.comment,
+            tags_json=payload.tags,
+            reviewed_at=datetime.now(UTC),
+        )
+        db.add(review)
+
+    db.commit()
+    db.refresh(review)
+
+    return SubmissionReviewResponse(
+        review=build_review_descriptor(review, db),
+        message="评价已提交，作品热度和分析图表会自动更新。",
     )

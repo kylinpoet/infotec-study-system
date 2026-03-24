@@ -210,6 +210,46 @@ class Resource(TimestampMixin, Base):
     visibility: Mapped[str] = mapped_column(String(20), default="tenant")
 
 
+class WorkSubmission(TimestampMixin, Base):
+    __tablename__ = "work_submissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey("activities.id"), nullable=False)
+    publication_id: Mapped[int | None] = mapped_column(ForeignKey("activity_publications.id"))
+    student_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    headline: Mapped[str | None] = mapped_column(String(120))
+    summary: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="submitted")
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    overall_score: Mapped[float | None] = mapped_column()
+
+
+class SubmissionAsset(TimestampMixin, Base):
+    __tablename__ = "submission_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    submission_id: Mapped[int] = mapped_column(ForeignKey("work_submissions.id"), nullable=False)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    media_kind: Mapped[str] = mapped_column(String(40), default="file")
+    file_url: Mapped[str] = mapped_column(String(255), nullable=False)
+    preview_url: Mapped[str | None] = mapped_column(String(255))
+    size_kb: Mapped[int | None] = mapped_column(Integer)
+
+
+class SubmissionReview(TimestampMixin, Base):
+    __tablename__ = "submission_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    submission_id: Mapped[int] = mapped_column(ForeignKey("work_submissions.id"), nullable=False)
+    reviewer_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    reviewer_role: Mapped[str] = mapped_column(String(20), default="student")
+    score: Mapped[float] = mapped_column(nullable=False)
+    comment: Mapped[str] = mapped_column(Text, nullable=False)
+    tags_json: Mapped[list[str]] = mapped_column(JSON, default=list)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class AIAgent(TimestampMixin, Base):
     __tablename__ = "ai_agents"
 

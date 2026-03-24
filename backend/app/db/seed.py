@@ -1,3 +1,4 @@
+import base64
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
@@ -16,10 +17,13 @@ from app.db.models import (
     Course,
     LiveClassSession,
     QuestionComponentRegistry,
+    SubmissionAsset,
+    SubmissionReview,
     StudentProfile,
     TeacherProfile,
     Tenant,
     User,
+    WorkSubmission,
 )
 
 
@@ -334,7 +338,7 @@ def _upsert_course(session: Session, *, tenant_id: int, blueprint: dict) -> Cour
     return course
 
 
-def _upsert_activity(session: Session, *, course_id: int, title: str) -> Activity:
+def _upsert_activity(session: Session, *, course_id: int, title: str, activity_type: str = "interactive_assignment") -> Activity:
     activity = session.scalar(
         select(Activity)
         .where(Activity.course_id == course_id)
@@ -344,7 +348,7 @@ def _upsert_activity(session: Session, *, course_id: int, title: str) -> Activit
         activity = Activity(
             course_id=course_id,
             title=title,
-            type="interactive_assignment",
+            type=activity_type,
             latest_revision_id=None,
             rubric_id=None,
             is_published=True,
@@ -353,7 +357,7 @@ def _upsert_activity(session: Session, *, course_id: int, title: str) -> Activit
         session.flush()
     else:
         activity.title = title
-        activity.type = "interactive_assignment"
+        activity.type = activity_type
         activity.is_published = True
     return activity
 

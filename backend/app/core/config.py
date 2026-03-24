@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
+UPLOAD_DIR = DATA_DIR / "uploads"
 DEFAULT_DB_URL = f"sqlite:///{(DATA_DIR / 'infotec.db').as_posix()}"
 
 
@@ -26,4 +27,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

@@ -121,6 +121,13 @@ class ActivitySpec(BaseModel):
     title: str
     instructions: str
     teacher_tip: str
+    stage_label: str | None = None
+    activity_type: str | None = None
+    deliverable: str | None = None
+    accepted_file_types: list[str] = Field(default_factory=list)
+    review_enabled: bool = False
+    rubric_items: list[str] = Field(default_factory=list)
+    prompt_starters: list[str] = Field(default_factory=list)
     component_whitelist: list[str] = Field(default_factory=list)
     questions: list[QuestionSpec] = Field(default_factory=list)
 
@@ -191,6 +198,71 @@ class AssignmentPreview(BaseModel):
     auto_generated: bool = True
 
 
+class ReviewDescriptor(BaseModel):
+    id: int
+    reviewer_name: str
+    reviewer_role: str
+    score: float
+    comment: str
+    reviewed_at: datetime | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class SubmissionAssetDescriptor(BaseModel):
+    id: int
+    file_name: str
+    file_type: str
+    media_kind: str
+    file_url: str
+    preview_url: str | None = None
+    size_kb: int | None = None
+
+
+class SubmissionDescriptor(BaseModel):
+    id: int
+    student_id: int
+    student_name: str
+    status: str
+    headline: str | None = None
+    summary: str | None = None
+    submitted_at: datetime | None = None
+    average_review_score: float | None = None
+    review_count: int = 0
+    assets: list[SubmissionAssetDescriptor] = Field(default_factory=list)
+    reviews: list[ReviewDescriptor] = Field(default_factory=list)
+
+
+class ActivityTaskDescriptor(BaseModel):
+    id: int
+    title: str
+    task_type: str
+    task_type_label: str
+    status: str
+    stage_label: str
+    instructions: str
+    teacher_tip: str | None = None
+    deliverable: str | None = None
+    publication_id: int | None = None
+    published_at: datetime | None = None
+    due_at: datetime | None = None
+    question_count: int = 0
+    component_whitelist: list[str] = Field(default_factory=list)
+    accepted_file_types: list[str] = Field(default_factory=list)
+    review_enabled: bool = False
+    rubric_items: list[str] = Field(default_factory=list)
+    prompt_starters: list[str] = Field(default_factory=list)
+    submission_count: int = 0
+    submission_target: int = 0
+    review_count: int = 0
+    average_score: float | None = None
+    average_review_score: float | None = None
+    spec: ActivitySpec | None = None
+    recent_submissions: list[SubmissionDescriptor] = Field(default_factory=list)
+    recent_reviews: list[ReviewDescriptor] = Field(default_factory=list)
+    my_submission: SubmissionDescriptor | None = None
+    my_review_queue: list[SubmissionDescriptor] = Field(default_factory=list)
+
+
 class TeacherDashboardResponse(BaseModel):
     teacher_name: str
     tenant_name: str
@@ -206,9 +278,11 @@ class TeacherDashboardResponse(BaseModel):
 
 class TeacherCourseDetailResponse(BaseModel):
     course: TeacherCourseCard
+    featured_activity_id: int | None = None
     assignment_preview: AssignmentPreview | None = None
     latest_spec: ActivitySpec | None = None
     analytics: AnalyticsResponse | None = None
+    activities: list[ActivityTaskDescriptor] = Field(default_factory=list)
     charts: list[ChartPanel] = Field(default_factory=list)
     recent_submissions: list[PendingItem] = Field(default_factory=list)
     allowed_components: list[str] = Field(default_factory=list)
@@ -295,9 +369,11 @@ class StudentDashboardResponse(BaseModel):
 
 class StudentCourseDetailResponse(BaseModel):
     course: StudentCourseCard
+    featured_activity_id: int | None = None
     assignment_preview: AssignmentPreview | None = None
     latest_spec: ActivitySpec | None = None
     current_publication_id: int | None = None
+    activities: list[ActivityTaskDescriptor] = Field(default_factory=list)
     recent_feedback: list[FeedbackItem] = Field(default_factory=list)
     course_assistant: AssistantDescriptor
 
@@ -330,3 +406,33 @@ class AttemptSubmitResponse(BaseModel):
     correct_count: int
     total_questions: int
     feedback: str
+
+
+class SubmissionAssetUploadPayload(BaseModel):
+    file_name: str
+    file_type: str
+    data_url: str
+
+
+class WorkSubmissionCreateRequest(BaseModel):
+    student_user_id: int
+    headline: str | None = None
+    summary: str | None = None
+    assets: list[SubmissionAssetUploadPayload] = Field(default_factory=list)
+
+
+class WorkSubmissionResponse(BaseModel):
+    submission: SubmissionDescriptor
+    message: str
+
+
+class SubmissionReviewRequest(BaseModel):
+    reviewer_user_id: int
+    score: float = Field(ge=0, le=100)
+    comment: str
+    tags: list[str] = Field(default_factory=list)
+
+
+class SubmissionReviewResponse(BaseModel):
+    review: ReviewDescriptor
+    message: str

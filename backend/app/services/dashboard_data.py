@@ -14,6 +14,7 @@ from app.db.models import (
     AssignmentAttempt,
     Classroom,
     Course,
+    WorkSubmission,
 )
 from app.schemas.contracts import (
     ActivitySpec,
@@ -23,6 +24,12 @@ from app.schemas.contracts import (
     AssignmentPreview,
     StudentCourseCard,
     TeacherCourseCard,
+)
+from app.services.activity_tasks import (
+    latest_interactive_publication_for_course,
+    latest_publication_for_activity,
+    resolve_activity_spec,
+    work_submissions_for_activity,
 )
 
 
@@ -151,7 +158,7 @@ def build_assignment_preview(
     db: Session,
     classroom_id: int | None = None,
 ) -> tuple[AssignmentPreview | None, ActivitySpec | None, ActivityPublication | None]:
-    publication = latest_publication_for_course(course_id, db, classroom_id)
+    publication = latest_interactive_publication_for_course(course_id, db, classroom_id)
     revision = db.get(ActivityRevision, publication.revision_id) if publication else latest_revision_for_course(course_id, db)
     if not revision:
         return None, None, publication
@@ -178,13 +185,23 @@ def build_assignment_preview(
 
 
 def build_teacher_course_card(course: Course, db: Session, classroom_id: int | None = None) -> TeacherCourseCard:
-    activities = db.scalars(select(Activity).where(Activity.course_id == course.id)).all()
+    activities = db.scalars(select(Activity).where(Activity.course_id == course.id).order_by(Activity.id.asc())).all()
     publications = course_publications(course.id, db, classroom_id)
     latest_publication = publications[0] if publications else None
-    attempts = _attempts_for_publication(latest_publication.id, db) if latest_publication else []
+    latest_activity = None
+    latest_submissions: list[WorkSubmission] = []
+    latest_attempts: list[AssignmentAttempt] = []
+    if latest_publication:
+        revision = db.get(ActivityRevision, latest_publication.revision_id)
+        latest_activity = db.get(Activity, revision.activity_id) if revision else None
+    if latest_activity and latest_activity.type == "interactive_assignment" and latest_publication:
+        latest_attempts = _attempts_for_publication(latest_publication.id, db)
+    elif latest_activity:
+        latest_submissions = work_submissions_for_activity(latest_activity.id, db, latest_publication.id if latest_publication else None)
     classroom = db.get(Classroom, classroom_id) if classroom_id else None
     student_count = classroom.student_count if classroom else 0
-    submission_rate = round((len(attempts) / student_count) * 100, 1) if student_count else 0.0
+    current_submission_count = len(latest_attempts) if latest_attempts else len(latest_submissions)
+    submission_rate = round((current_submission_count / student_count) * 100, 1) if student_count else 0.0
     latest_revision = latest_revision_for_course(course.id, db)
     last_updated = latest_publication.published_at if latest_publication else (latest_revision.updated_at if latest_revision else course.updated_at)
     agent_enabled = bool(
@@ -205,7 +222,7 @@ def build_teacher_course_card(course: Course, db: Session, classroom_id: int | N
         status="已发布" if course.is_published else "草稿",
         assignment_count=len(activities),
         published_assignment_count=len(publications),
-        average_score=_round_score(sum(attempt.auto_score or 0 for attempt in attempts) / len(attempts) if attempts else 0.0),
+        average_score=_round_score(sum(attempt.auto_score or 0 for attempt in latest_attempts) / len(latest_attempts) if latest_attempts else 0.0),
         submission_rate=submission_rate,
         agent_enabled=agent_enabled,
         last_updated=last_updated,
@@ -230,6 +247,7 @@ def build_student_course_card(
     classroom_id: int,
     db: Session,
 ) -> StudentCourseCard:
+    activities = db.scalars(select(Activity).where(Activity.course_id == course.id).order_by(Activity.id.asc())).all()
     publications = course_publications(course.id, db, classroom_id)
     publication_ids = [publication.id for publication in publications]
     attempts = (
@@ -241,19 +259,53 @@ def build_student_course_card(
         if publication_ids
         else []
     )
+    own_work_submissions = db.scalars(
+        select(WorkSubmission)
+        .where(WorkSubmission.student_id == student_id)
+        .where(WorkSubmission.activity_id.in_([activity.id for activity in activities] or [-1]))
+        .order_by(WorkSubmission.submitted_at.desc(), WorkSubmission.id.desc())
+    ).all()
     sorted_attempts = _sorted_attempts(attempts)
     latest_attempt = next((attempt for attempt in sorted_attempts if attempt.submitted_at), None)
     submitted_publication_ids = {attempt.publication_id for attempt in attempts if attempt.submitted_at}
-    completion_rate = round((len(submitted_publication_ids) / len(publications)) * 100, 1) if publications else 0.0
-    latest_publication = publications[0] if publications else None
-    latest_task_attempt = next((attempt for attempt in attempts if latest_publication and attempt.publication_id == latest_publication.id and attempt.submitted_at), None)
-    if latest_publication and latest_task_attempt:
+    submitted_activity_ids = {submission.activity_id for submission in own_work_submissions}
+
+    actionable_total = 0
+    completed_total = 0
+    next_task_title = None
+    next_task_due_at = None
+    status = "待发布"
+
+    for activity in activities:
+        _, spec, publication = resolve_activity_spec(activity, db, classroom_id)
+        has_questions = bool(spec and spec.questions)
+        accepts_submission = bool(spec and spec.accepted_file_types)
+        if not (has_questions or accepts_submission):
+            continue
+
+        actionable_total += 1
+        is_complete = False
+        if publication and publication.id in submitted_publication_ids:
+            is_complete = True
+        if activity.id in submitted_activity_ids:
+            is_complete = True
+
+        if is_complete:
+            completed_total += 1
+        elif next_task_title is None:
+            next_task_title = spec.title if spec else activity.title
+            next_task_due_at = publication.due_at if publication else activity.due_at
+
+    completion_rate = round((completed_total / actionable_total) * 100, 1) if actionable_total else 0.0
+    if actionable_total and completed_total == actionable_total:
         status = "已完成"
-    elif latest_publication:
+    elif actionable_total:
         status = "进行中"
-    else:
-        status = "待发布"
-    preview, _, _ = build_assignment_preview(course.id, db, classroom_id)
+    preview, _, latest_publication = build_assignment_preview(course.id, db, classroom_id)
+    if next_task_title is None and preview:
+        next_task_title = preview.title
+        next_task_due_at = latest_publication.due_at if latest_publication else None
+
     return StudentCourseCard(
         id=course.id,
         title=course.title,
@@ -263,6 +315,6 @@ def build_student_course_card(
         status=status,
         latest_score=latest_attempt.auto_score if latest_attempt else None,
         completion_rate=completion_rate,
-        next_task_title=preview.title if preview else None,
-        next_task_due_at=latest_publication.due_at if latest_publication else None,
+        next_task_title=next_task_title,
+        next_task_due_at=next_task_due_at,
     )

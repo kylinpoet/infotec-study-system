@@ -14,10 +14,12 @@ from app.db.models import (
     Course,
     LiveClassSession,
     QuestionComponentRegistry,
+    SubmissionReview,
     StudentProfile,
     TeacherProfile,
     Tenant,
     User,
+    WorkSubmission,
 )
 from app.db.session import get_db
 from app.schemas.contracts import (
@@ -38,6 +40,7 @@ from app.schemas.contracts import (
     TeacherDashboardResponse,
 )
 from app.services.activity_generator import build_activity_spec
+from app.services.activity_tasks import build_activity_task_descriptor, build_submission_descriptor
 from app.services.dashboard_data import (
     build_agent_cards,
     build_analytics,
@@ -307,6 +310,24 @@ def get_teacher_course_detail(course_id: int, db: Session = Depends(get_db)):
     course_card = build_teacher_course_card(course, db, classroom.id if classroom else None)
     preview, spec, publication = build_assignment_preview(course.id, db, classroom.id if classroom else None)
     analytics = build_analytics(publication.id, db) if publication else None
+    activity_rows = db.scalars(
+        select(Activity)
+        .where(Activity.course_id == course.id)
+        .order_by(Activity.id.asc())
+    ).all()
+    activities = [
+        build_activity_task_descriptor(
+            activity,
+            db,
+            classroom_id=classroom.id if classroom else None,
+            stage_index=index,
+        )
+        for index, activity in enumerate(activity_rows, start=1)
+    ]
+    featured_activity = next(
+        (item for item in reversed(activities) if item.status in {"进行中", "已截止", "已准备"}),
+        activities[0] if activities else None,
+    )
 
     recent_submissions: list[PendingItem] = []
     if publication:
@@ -328,7 +349,47 @@ def get_teacher_course_detail(course_id: int, db: Session = Depends(get_db)):
                 )
             )
 
-    charts = []
+    work_items = db.scalars(
+        select(WorkSubmission)
+        .join(Activity, WorkSubmission.activity_id == Activity.id)
+        .where(Activity.course_id == course.id)
+        .order_by(WorkSubmission.submitted_at.desc(), WorkSubmission.id.desc())
+        .limit(5)
+    ).all()
+    for submission in work_items:
+        descriptor = build_submission_descriptor(submission, db, review_limit=2)
+        recent_submissions.append(
+            PendingItem(
+                title=f"{descriptor.student_name} · {descriptor.headline or '作品提交'}",
+                status=f"{len(descriptor.assets)} 个附件 / {descriptor.review_count} 条评价",
+                meta=descriptor.summary or "已回流到教师后台，可继续查看作品预览与互评记录。",
+            )
+        )
+
+    charts = [
+        ChartPanel(
+            key="activity-submission-progress",
+            title="活动任务提交进度",
+            subtitle="按课程活动查看当前班级的完成节奏，作品上传与交互作业统一纳入统计。",
+            chart_type="bar",
+            unit="%",
+            points=[
+                ChartDatum(
+                    label=item.stage_label,
+                    value=round((item.submission_count / item.submission_target) * 100, 1) if item.submission_target else 0,
+                )
+                for item in activities
+            ],
+        ),
+        ChartPanel(
+            key="activity-review-heat",
+            title="作品评价活跃度",
+            subtitle="展示每个活动目前累计的互评条数，便于判断是否需要教师引导补评。",
+            chart_type="line",
+            unit="条",
+            points=[ChartDatum(label=item.stage_label, value=item.review_count) for item in activities],
+        ),
+    ]
     if analytics:
         charts.extend(
             [
@@ -368,11 +429,13 @@ def get_teacher_course_detail(course_id: int, db: Session = Depends(get_db)):
 
     return TeacherCourseDetailResponse(
         course=course_card,
+        featured_activity_id=featured_activity.id if featured_activity else None,
         assignment_preview=preview,
         latest_spec=spec,
         analytics=analytics,
+        activities=activities,
         charts=charts,
-        recent_submissions=recent_submissions,
+        recent_submissions=recent_submissions[:8],
         allowed_components=allowed_components,
         course_assistant=_teacher_course_assistant(course, db),
     )
