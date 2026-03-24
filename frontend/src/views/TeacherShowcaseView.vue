@@ -49,7 +49,7 @@
     </section>
 
     <div class="stats-grid">
-      <StatCard title="展示作品" :value="String(showcaseSubmissions.length)" hint="当前筛选条件下可用于课堂展示的作品数量" />
+      <StatCard title="展示作品" :value="String(allSubmissions.length)" hint="当前筛选条件下可用于课堂展示的作品数量" />
       <StatCard title="待教师点评" :value="String(pendingTeacherReviews.length)" hint="建议优先点评这些作品，便于形成完整反馈" />
       <StatCard title="已教师点评" :value="String(reviewedSubmissions.length)" hint="这些作品已带教师结论，适合做课堂展示和讲评" />
       <StatCard title="平均评价分" :value="averageReviewScoreLabel" hint="综合同伴互评和教师点评的平均分" />

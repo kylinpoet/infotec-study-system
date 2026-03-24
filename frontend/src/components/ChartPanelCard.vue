@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import "../charts/setup";
 import VChart from "vue-echarts";
 
 import type { ChartPanel } from "../types/contracts";

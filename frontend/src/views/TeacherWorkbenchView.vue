@@ -164,6 +164,7 @@
                   </p>
                 </div>
                 <div class="hero-actions">
+                  <el-button round @click="openShowcase">作品大屏</el-button>
                   <el-button round @click="courseAssistantOpen = true">课程智能体</el-button>
                 </div>
               </div>
@@ -708,6 +709,13 @@ async function loadCourseDetail(courseId: number) {
 function selectCourse(courseId: number) {
   selectedCourseId.value = courseId;
   activeTab.value = "courses";
+}
+
+function openShowcase() {
+  if (!courseDetail.value) {
+    return;
+  }
+  router.push({ name: "teacher-showcase", params: { courseId: courseDetail.value.course.id } });
 }
 
 function ensureTeacherReviewForm(submission: SubmissionDescriptor) {
