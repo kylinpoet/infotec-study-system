@@ -16,6 +16,7 @@ import { ElRadio, ElRadioButton, ElRadioGroup } from "element-plus/es/components
 import { ElSkeleton } from "element-plus/es/components/skeleton/index";
 import { ElSlider } from "element-plus/es/components/slider/index";
 import { ElSpace } from "element-plus/es/components/space/index";
+import { ElStep, ElSteps } from "element-plus/es/components/steps/index";
 import { ElSwitch } from "element-plus/es/components/switch/index";
 import { ElTabPane, ElTabs } from "element-plus/es/components/tabs/index";
 import { ElTag } from "element-plus/es/components/tag/index";
@@ -45,6 +46,8 @@ import "element-plus/es/components/radio-group/style/css";
 import "element-plus/es/components/skeleton/style/css";
 import "element-plus/es/components/slider/style/css";
 import "element-plus/es/components/space/style/css";
+import "element-plus/es/components/steps/style/css";
+import "element-plus/es/components/step/style/css";
 import "element-plus/es/components/switch/style/css";
 import "element-plus/es/components/tabs/style/css";
 import "element-plus/es/components/tab-pane/style/css";
@@ -77,6 +80,8 @@ const components = [
   ElSkeleton,
   ElSlider,
   ElSpace,
+  ElStep,
+  ElSteps,
   ElSwitch,
   ElTabPane,
   ElTabs,

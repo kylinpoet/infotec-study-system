@@ -2,9 +2,14 @@
   <el-card class="panel-card section-card" shadow="never">
     <template #header>
       <div class="panel-head">
-        <div>
-          <p class="panel-kicker">{{ eyebrow }}</p>
-          <h3>{{ title }}</h3>
+        <div class="panel-head__title">
+          <div v-if="$slots.icon" class="panel-icon">
+            <slot name="icon" />
+          </div>
+          <div>
+            <p class="panel-kicker">{{ eyebrow }}</p>
+            <h3>{{ title }}</h3>
+          </div>
         </div>
         <slot name="action" />
       </div>

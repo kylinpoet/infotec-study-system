@@ -36,13 +36,20 @@
         :title="item.title"
         :value="item.value"
         :hint="item.hint"
-      />
+      >
+        <template #icon>
+          <el-icon><component :is="teacherStatIcon(item.title)" /></el-icon>
+        </template>
+      </StatCard>
     </div>
 
     <el-tabs v-model="activeTab" class="workspace-tabs">
       <el-tab-pane label="工作台总览" name="overview">
         <div class="workspace-grid workspace-grid--teacher-overview">
           <SectionCard eyebrow="开课控制" title="按班级开启上课">
+            <template #icon>
+              <el-icon><School /></el-icon>
+            </template>
             <div class="classroom-control-grid">
               <div class="control-panel">
                 <div class="theme-switcher theme-switcher--wide">
@@ -194,6 +201,9 @@
           </SectionCard>
 
           <SectionCard eyebrow="课程目录" title="当前班级课程列表">
+            <template #icon>
+              <el-icon><Reading /></el-icon>
+            </template>
             <div class="course-list">
               <button
                 v-for="course in dashboard.course_directory"
@@ -218,12 +228,18 @@
           </SectionCard>
 
           <SectionCard eyebrow="图表分析" title="教师首页图表">
+            <template #icon>
+              <el-icon><DataAnalysis /></el-icon>
+            </template>
             <div class="chart-grid">
               <ChartPanelCard v-for="panel in dashboard.charts" :key="panel.key" :panel="panel" />
             </div>
           </SectionCard>
 
           <SectionCard eyebrow="待处理" title="今日关注事项">
+            <template #icon>
+              <el-icon><Bell /></el-icon>
+            </template>
             <div class="info-list">
               <div v-for="item in dashboard.pending_items" :key="item.title" class="info-list-item">
                 <div>
@@ -577,89 +593,159 @@
 
                 <el-tab-pane label="AI 活动工坊" name="studio">
                   <div class="detail-stack">
-                    <SectionCard eyebrow="AI 活动工坊" title="生成交互作业任务">
-                      <el-form label-position="top">
-                        <el-form-item label="作业标题">
-                          <el-input v-model="draftTitle" placeholder="请输入作业标题" />
-                        </el-form-item>
-                        <el-form-item label="教学目标">
-                          <el-input v-model="learningGoal" type="textarea" :rows="4" />
-                        </el-form-item>
-                        <el-form-item label="参考资料">
-                          <el-input
-                            v-model="resourceNames"
-                            placeholder="教材页、PPT、案例截图，使用逗号分隔"
-                          />
-                        </el-form-item>
-                        <el-form-item label="题型白名单">
-                          <el-checkbox-group v-model="selectedComponents">
-                            <el-checkbox
-                              v-for="component in courseDetail.allowed_components"
-                              :key="component"
-                              :label="component"
-                            >
-                              {{ component }}
-                            </el-checkbox>
-                          </el-checkbox-group>
-                        </el-form-item>
-                        <el-form-item label="发布到班级">
-                          <el-tag round effect="plain">{{ selectedClassroom?.name ?? dashboard.classroom_label }}</el-tag>
-                        </el-form-item>
-                        <el-form-item label="截止时间">
-                          <el-date-picker
-                            v-model="publishDueAt"
-                            type="datetime"
-                            value-format="YYYY-MM-DDTHH:mm:ss"
-                            placeholder="不填则使用默认截止时间"
-                            class="fill-picker"
-                          />
-                        </el-form-item>
-                        <div class="hero-actions">
-                          <el-button type="primary" :loading="draftLoading" @click="handleGenerateDraft">
-                            生成 AI 活动
-                          </el-button>
-                          <el-button :disabled="!generatedDraft" :loading="publishLoading" @click="handlePublishDraft">
-                            发布到当前班级
-                          </el-button>
-                        </div>
-                      </el-form>
-                      <p v-if="draftHint" class="status-text">{{ draftHint }}</p>
-                    </SectionCard>
-
-                    <SectionCard eyebrow="草稿预览" title="最新生成结果">
-                      <template v-if="generatedDraft">
-                        <div class="preview-summary">
-                          <div>
-                            <strong>{{ generatedDraft.spec.title }}</strong>
-                            <p class="panel-note">{{ generatedDraft.draft_summary }}</p>
-                          </div>
-                          <el-tag type="success" round>待教师审核</el-tag>
-                        </div>
-                        <div class="tag-row">
-                          <el-tag
-                            v-for="component in generatedDraft.spec.component_whitelist"
-                            :key="component"
-                            round
-                            effect="plain"
-                          >
-                            {{ component }}
-                          </el-tag>
-                        </div>
-                        <div class="question-preview-list">
-                          <div v-for="question in generatedDraft.spec.questions" :key="question.key" class="question-preview-item">
-                            <div class="question-preview-item__head">
-                              <strong>{{ question.stem }}</strong>
-                              <el-tag type="warning" effect="plain" round>{{ `${question.points} 分` }}</el-tag>
-                            </div>
-                            <p class="panel-note">
-                              {{ question.type }} · {{ question.options.length ? question.options.join(' / ') : '开放回答' }}
-                            </p>
-                          </div>
-                        </div>
+                    <SectionCard eyebrow="AI 活动工坊" title="分步骤发布课程活动">
+                      <template #icon>
+                        <el-icon><MagicStick /></el-icon>
                       </template>
-                      <p v-else class="panel-note">
-                        生成后会在这里展示结构化活动草稿。教师确认后即可按当前班级发布，并在课程目录中继续查看数据回流。
-                      </p>
+                      <div class="workflow-shell">
+                        <el-steps :active="publishFlowStep" simple class="workflow-steps">
+                          <el-step
+                            v-for="item in publishFlowSteps"
+                            :key="item.title"
+                            :title="item.title"
+                            :description="item.description"
+                          />
+                        </el-steps>
+
+                        <div class="workflow-grid">
+                          <div class="workflow-panel">
+                            <template v-if="publishFlowStep === 0">
+                              <div class="workflow-panel__head">
+                                <div>
+                                  <p class="panel-kicker">步骤一</p>
+                                  <h4>明确主题、目标和资源</h4>
+                                </div>
+                                <el-tag round effect="plain">教师发布前置设计</el-tag>
+                              </div>
+                              <el-form label-position="top">
+                                <el-form-item label="作业标题">
+                                  <el-input v-model="draftTitle" placeholder="请输入作业标题" />
+                                </el-form-item>
+                                <el-form-item label="教学目标">
+                                  <el-input v-model="learningGoal" type="textarea" :rows="4" />
+                                </el-form-item>
+                                <el-form-item label="参考资料">
+                                  <el-input
+                                    v-model="resourceNames"
+                                    placeholder="教材页、PPT、案例截图，使用逗号分隔"
+                                  />
+                                </el-form-item>
+                              </el-form>
+                            </template>
+
+                            <template v-else-if="publishFlowStep === 1">
+                              <div class="workflow-panel__head">
+                                <div>
+                                  <p class="panel-kicker">步骤二</p>
+                                  <h4>配置题型、班级和时限</h4>
+                                </div>
+                                <el-tag round effect="plain">发布策略</el-tag>
+                              </div>
+                              <el-form label-position="top">
+                                <el-form-item label="题型白名单">
+                                  <el-checkbox-group v-model="selectedComponents">
+                                    <el-checkbox
+                                      v-for="component in courseDetail.allowed_components"
+                                      :key="component"
+                                      :label="component"
+                                    >
+                                      {{ component }}
+                                    </el-checkbox>
+                                  </el-checkbox-group>
+                                </el-form-item>
+                                <el-form-item label="发布到班级">
+                                  <el-tag round effect="plain">{{ selectedClassroom?.name ?? dashboard.classroom_label }}</el-tag>
+                                </el-form-item>
+                                <el-form-item label="截止时间">
+                                  <el-date-picker
+                                    v-model="publishDueAt"
+                                    type="datetime"
+                                    value-format="YYYY-MM-DDTHH:mm:ss"
+                                    placeholder="不填则使用默认截止时间"
+                                    class="fill-picker"
+                                  />
+                                </el-form-item>
+                              </el-form>
+                            </template>
+
+                            <template v-else>
+                              <div class="workflow-panel__head">
+                                <div>
+                                  <p class="panel-kicker">步骤三</p>
+                                  <h4>生成草稿并确认发布</h4>
+                                </div>
+                                <el-tag round type="success">{{ generatedDraft ? "草稿已生成" : "等待生成" }}</el-tag>
+                              </div>
+                              <div class="hero-actions">
+                                <el-button type="primary" :loading="draftLoading" @click="handleGenerateDraft">
+                                  生成 AI 活动
+                                </el-button>
+                                <el-button :disabled="!generatedDraft" :loading="publishLoading" @click="handlePublishDraft">
+                                  发布到当前班级
+                                </el-button>
+                              </div>
+                              <p class="panel-note">
+                                平台会先生成结构化活动草稿，再由教师决定是否发布到当前班级，避免一次性堆满所有配置项。
+                              </p>
+                            </template>
+
+                            <div class="workflow-actions">
+                              <el-button :disabled="publishFlowStep === 0" @click="prevPublishFlowStep">上一步</el-button>
+                              <el-button
+                                type="primary"
+                                plain
+                                :disabled="publishFlowStep === publishFlowSteps.length - 1"
+                                @click="nextPublishFlowStep"
+                              >
+                                下一步
+                              </el-button>
+                            </div>
+                            <p v-if="draftHint" class="status-text">{{ draftHint }}</p>
+                          </div>
+
+                          <div class="workflow-panel workflow-panel--aside">
+                            <div class="workflow-panel__head">
+                              <div>
+                                <p class="panel-kicker">发布预览</p>
+                                <h4>{{ generatedDraft?.spec.title ?? "等待生成活动草稿" }}</h4>
+                              </div>
+                              <el-tag round effect="plain">{{ selectedClassroom?.name ?? dashboard.classroom_label }}</el-tag>
+                            </div>
+                            <template v-if="generatedDraft">
+                              <p class="panel-note">{{ generatedDraft.draft_summary }}</p>
+                              <div class="tag-row">
+                                <el-tag
+                                  v-for="component in generatedDraft.spec.component_whitelist"
+                                  :key="component"
+                                  round
+                                  effect="plain"
+                                >
+                                  {{ component }}
+                                </el-tag>
+                              </div>
+                              <div class="question-preview-list">
+                                <div
+                                  v-for="question in generatedDraft.spec.questions.slice(0, 3)"
+                                  :key="question.key"
+                                  class="question-preview-item"
+                                >
+                                  <div class="question-preview-item__head">
+                                    <strong>{{ question.stem }}</strong>
+                                    <el-tag type="warning" effect="plain" round>{{ `${question.points} 分` }}</el-tag>
+                                  </div>
+                                  <p class="panel-note">
+                                    {{ question.type }} · {{ question.options.length ? question.options.join(" / ") : "开放回答" }}
+                                  </p>
+                                </div>
+                              </div>
+                            </template>
+                            <div v-else class="step-note">
+                              <p>建议先完成前两步，再在这里生成草稿。</p>
+                              <p>生成后会展示标题、题型白名单和前几道示例题，方便快速确认。</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </SectionCard>
                   </div>
                 </el-tab-pane>
@@ -739,8 +825,18 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
+import {
+  Bell,
+  DataAnalysis,
+  Flag,
+  MagicStick,
+  Monitor,
+  Reading,
+  School,
+  Stopwatch,
+} from "@element-plus/icons-vue";
 
 import { api } from "../api/client";
 import AssistantDrawer from "../components/AssistantDrawer.vue";
@@ -763,8 +859,10 @@ const classViewModes = [
   { value: "showcase", label: "作品展示" },
 ];
 
+const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
+let isSyncingWorkbenchRoute = false;
 
 const dashboard = ref<TeacherDashboardResponse | null>(null);
 const courseDetail = ref<TeacherCourseDetailResponse | null>(null);
@@ -786,6 +884,7 @@ const generatedDraft = ref<ActivityDraftResponse | null>(null);
 const generatedDraftCourseId = ref<number | null>(null);
 const publishDueAt = ref<string | null>(null);
 const draftHint = ref("");
+const publishFlowStep = ref(0);
 const teacherReviewForms = reactive<Record<number, { score: number; comment: string; tags: string[] }>>({});
 const documentPreview = reactive({
   visible: false,
@@ -857,6 +956,12 @@ const showcaseSubmissions = computed<SubmissionDescriptor[]>(() => {
     .slice(0, 6);
 });
 
+const publishFlowSteps = [
+  { title: "教学目标", description: "设定主题与资源" },
+  { title: "题型配置", description: "选择班级与题型" },
+  { title: "生成发布", description: "生成草稿并投放" },
+];
+
 onMounted(async () => {
   if (session.user?.role === "teacher") {
     await initializeTeacherWorkbench();
@@ -877,15 +982,19 @@ watch(
 
 async function loginDemo() {
   await session.login("kylin", "222221", "xingzhi-school");
-  await router.replace("/teacher");
+  await router.replace({ name: "teacher" });
   await initializeTeacherWorkbench();
 }
 
 async function initializeTeacherWorkbench() {
-  await loadDashboard(selectedClassroomId.value);
+  activeTab.value = parseWorkbenchTab(route.query.tab) ?? "overview";
+  await loadDashboard(parsePositiveInt(route.query.classroomId), parsePositiveInt(route.query.courseId));
 }
 
-async function loadDashboard(targetClassroomId: number | null = selectedClassroomId.value) {
+async function loadDashboard(
+  targetClassroomId: number | null = selectedClassroomId.value,
+  targetCourseId: number | null = selectedCourseId.value,
+) {
   if (!session.user) {
     return;
   }
@@ -897,12 +1006,13 @@ async function loadDashboard(targetClassroomId: number | null = selectedClassroo
   syncStartClassForm(nextDashboard);
 
   const preferredCourseId =
-    nextDashboard.course_directory.find((course) => course.id === selectedCourseId.value)?.id ??
+    nextDashboard.course_directory.find((course) => course.id === targetCourseId)?.id ??
     nextDashboard.active_session?.course_id ??
     nextDashboard.course_directory[0]?.id ??
     null;
 
   selectedCourseId.value = preferredCourseId;
+  await syncWorkbenchRoute();
   if (preferredCourseId) {
     await loadCourseDetail(preferredCourseId);
   } else {
@@ -939,13 +1049,14 @@ async function loadCourseDetail(courseId: number) {
 async function handleClassroomChange(classroomId: number) {
   selectedClassroomId.value = classroomId;
   startClassForm.classroom_id = classroomId;
-  await loadDashboard(classroomId);
+  await loadDashboard(classroomId, selectedCourseId.value);
 }
 
 async function handleSelectCourse(courseId: number) {
   selectedCourseId.value = courseId;
   startClassForm.course_id = courseId;
   activeTab.value = "courses";
+  await syncWorkbenchRoute();
   await loadCourseDetail(courseId);
 }
 
@@ -968,7 +1079,7 @@ async function handleStartClass() {
     selectedCourseId.value = startClassForm.course_id;
     activeTab.value = "overview";
     ElMessage.success(response.message);
-    await loadDashboard(startClassForm.classroom_id);
+    await loadDashboard(startClassForm.classroom_id, startClassForm.course_id);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "开启课堂失败");
   } finally {
@@ -1075,6 +1186,7 @@ async function handleCreateCourse() {
     selectedCourseId.value = response.course.id;
     startClassForm.course_id = response.course.id;
     activeTab.value = "courses";
+    await syncWorkbenchRoute();
     await loadCourseDetail(response.course.id);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : "创建课程失败");
@@ -1162,6 +1274,94 @@ function applySuggestion(suggestion: string) {
   draftHint.value = suggestion;
   ElMessage.info(`智能体建议：${suggestion}`);
 }
+
+function nextPublishFlowStep() {
+  publishFlowStep.value = Math.min(publishFlowStep.value + 1, publishFlowSteps.length - 1);
+}
+
+function prevPublishFlowStep() {
+  publishFlowStep.value = Math.max(publishFlowStep.value - 1, 0);
+}
+
+function teacherStatIcon(title: string) {
+  if (title.includes("课程")) {
+    return Reading;
+  }
+  if (title.includes("机房")) {
+    return Monitor;
+  }
+  if (title.includes("复核")) {
+    return Stopwatch;
+  }
+  return Flag;
+}
+
+function parsePositiveInt(value: unknown) {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(normalized ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseWorkbenchTab(value: unknown) {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  return normalized === "courses" || normalized === "overview" ? normalized : null;
+}
+
+async function syncWorkbenchRoute() {
+  const query: Record<string, string> = {};
+  if (selectedClassroomId.value) {
+    query.classroomId = String(selectedClassroomId.value);
+  }
+  if (selectedCourseId.value) {
+    query.courseId = String(selectedCourseId.value);
+  }
+  if (activeTab.value !== "overview") {
+    query.tab = activeTab.value;
+  }
+
+  isSyncingWorkbenchRoute = true;
+  try {
+    await router.replace({ name: "teacher", query });
+  } finally {
+    isSyncingWorkbenchRoute = false;
+  }
+}
+
+watch(activeTab, async () => {
+  if (!dashboard.value) {
+    return;
+  }
+  await syncWorkbenchRoute();
+});
+
+watch(
+  () => [route.query.classroomId, route.query.courseId, route.query.tab],
+  async ([classroomValue, courseValue, tabValue]) => {
+    if (isSyncingWorkbenchRoute || !dashboard.value) {
+      return;
+    }
+
+    const nextTab = parseWorkbenchTab(tabValue) ?? "overview";
+    if (nextTab !== activeTab.value) {
+      activeTab.value = nextTab;
+    }
+
+    const nextClassroomId = parsePositiveInt(classroomValue);
+    const nextCourseId = parsePositiveInt(courseValue);
+
+    if (nextClassroomId && nextClassroomId !== selectedClassroomId.value) {
+      await loadDashboard(nextClassroomId, nextCourseId);
+      return;
+    }
+
+    if (nextCourseId && nextCourseId !== selectedCourseId.value) {
+      selectedCourseId.value = nextCourseId;
+      startClassForm.course_id = nextCourseId;
+      await loadCourseDetail(nextCourseId);
+    }
+  },
+);
+
 function displayModeLabel(mode: string) {
   return classViewModes.find((item) => item.value === mode)?.label ?? mode;
 }

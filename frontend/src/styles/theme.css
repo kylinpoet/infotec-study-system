@@ -828,6 +828,8 @@ textarea {
 .live-session-card,
 .document-preview,
 .document-preview__meta,
+.showcase-broadcast,
+.showcase-broadcast__list,
 .showcase-toolbar,
 .showcase-toolbar__controls,
 .showcase-stage,
@@ -911,6 +913,44 @@ textarea {
   line-height: 1.75;
   white-space: pre-wrap;
   font-family: "JetBrains Mono", "Cascadia Mono", "Microsoft YaHei", monospace;
+}
+
+.showcase-broadcast {
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(215, 224, 236, 0.85);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-accent) 16%, transparent), transparent 32%),
+    linear-gradient(135deg, rgba(255, 251, 241, 0.96), rgba(255, 255, 255, 0.96));
+}
+
+.showcase-broadcast__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.showcase-broadcast__list p {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0;
+  color: #334155;
+  line-height: 1.8;
+}
+
+.showcase-broadcast__list span:first-child {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-accent) 22%, white);
+  color: #8a5300;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .showcase-page {
@@ -1276,6 +1316,7 @@ textarea {
   .submission-card__head,
   .assignment-stage__head,
   .live-session-card__head,
+  .showcase-broadcast__head,
   .showcase-stage__head,
   .showcase-stage__footer,
   .showcase-toolbar,

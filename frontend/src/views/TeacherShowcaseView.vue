@@ -127,6 +127,22 @@
             <p>{{ spotlightSubmission.teacher_review.comment }}</p>
           </div>
 
+          <div class="showcase-broadcast">
+            <div class="showcase-broadcast__head">
+              <div>
+                <p class="panel-kicker">自动讲评播报词</p>
+                <strong>跟随当前焦点作品自动更新</strong>
+              </div>
+              <el-tag round effect="plain">{{ autoRotate ? "轮播联动" : "当前焦点" }}</el-tag>
+            </div>
+            <div class="showcase-broadcast__list">
+              <p v-for="(line, index) in broadcastScriptLines" :key="`${spotlightSubmission.id}-${index}`">
+                <span>{{ index + 1 }}</span>
+                <span>{{ line }}</span>
+              </p>
+            </div>
+          </div>
+
           <div class="submission-asset-list">
             <a
               v-for="asset in spotlightSubmission.assets"
@@ -280,6 +296,7 @@ const spotlightIndex = ref(0);
 const isFullscreen = ref(false);
 
 let rotationTimer: number | null = null;
+let isSyncingShowcaseRoute = false;
 
 const activeClassroom = computed(() => {
   return dashboard.value?.classroom_options.find((item) => item.id === selectedClassroomId.value) ?? null;
@@ -345,6 +362,34 @@ const averageReviewScoreLabel = computed(() => {
   return (scores.reduce((sum, score) => sum + score, 0) / scores.length).toFixed(1);
 });
 
+const broadcastScriptLines = computed(() => {
+  const submission = spotlightSubmission.value;
+  if (!submission) {
+    return [];
+  }
+
+  const teacherTags = submission.teacher_review?.tags?.length
+    ? submission.teacher_review.tags.join("、")
+    : "主题表达、信息结构、呈现效果";
+  const teacherComment = submission.teacher_review?.comment ?? "这份作品适合继续从结构完整度和表达清晰度两个方面展开讲评。";
+  const peerHighlights = submission.reviews
+    .slice(0, 2)
+    .map((review) => `${review.reviewer_name}提到“${review.comment}”`);
+
+  const opening = classroomDisplayMode.value
+    ? `请${activeClassroom.value?.name ?? "当前班级"}同学一起观察 ${submission.student_name} 的作品《${submission.headline || "学生作品"}》。`
+    : `现在展示的是 ${submission.student_name} 的《${submission.headline || "学生作品"}》，请大家先快速浏览整体构图和信息表达。`;
+  const strength = `这份作品当前最值得借鉴的亮点是${teacherTags}。教师点评认为：${teacherComment}`;
+  const peerVoice = peerHighlights.length
+    ? `从同伴反馈来看，${peerHighlights.join("；")}。`
+    : "目前同伴反馈还不多，建议大家重点关注它的主题表达和内容组织方式。";
+  const prompt = classroomDisplayMode.value
+    ? "请同学们思考：如果由你继续优化这份作品，你最想补强的一个细节是什么？"
+    : "接下来请大家用一句话说出你最想借鉴的设计点，再思考怎样迁移到自己的作品里。";
+
+  return [opening, strength, peerVoice, prompt];
+});
+
 onMounted(async () => {
   document.addEventListener("fullscreenchange", handleFullscreenChange);
   if (session.user?.role === "teacher") {
@@ -397,12 +442,14 @@ async function loginDemo() {
 async function initializeShowcase() {
   const routeClassroomId = Number(route.query.classroomId ?? 0) || null;
   const routeCourseId = Number(route.params.courseId ?? 0) || null;
-  await loadDashboardAndCourse(routeClassroomId, routeCourseId);
+  const routeActivityId = parsePositiveInt(route.query.activityId) ?? 0;
+  await loadDashboardAndCourse(routeClassroomId, routeCourseId, routeActivityId);
 }
 
 async function loadDashboardAndCourse(
   targetClassroomId: number | null = selectedClassroomId.value,
   targetCourseId: number | null = selectedCourseId.value,
+  targetActivityId: number = selectedActivityId.value,
 ) {
   if (!session.user) {
     return;
@@ -418,6 +465,7 @@ async function loadDashboardAndCourse(
     nextDashboard.course_directory[0]?.id ??
     null;
   selectedCourseId.value = nextCourseId;
+  selectedActivityId.value = targetActivityId;
 
   if (nextCourseId) {
     await loadCourseDetail(nextCourseId);
@@ -425,11 +473,7 @@ async function loadDashboardAndCourse(
     courseDetail.value = null;
   }
 
-  await router.replace({
-    name: "teacher-showcase",
-    params: nextCourseId ? { courseId: nextCourseId } : undefined,
-    query: selectedClassroomId.value ? { classroomId: String(selectedClassroomId.value) } : undefined,
-  });
+  await syncShowcaseRoute(nextCourseId);
 }
 
 async function loadCourseDetail(courseId: number) {
@@ -448,11 +492,7 @@ async function loadCourseDetail(courseId: number) {
 async function handleCourseChange(courseId: number) {
   selectedCourseId.value = courseId;
   await loadCourseDetail(courseId);
-  await router.replace({
-    name: "teacher-showcase",
-    params: { courseId },
-    query: selectedClassroomId.value ? { classroomId: String(selectedClassroomId.value) } : undefined,
-  });
+  await syncShowcaseRoute(courseId);
 }
 
 async function handleClassroomChange(classroomId: number) {
@@ -464,10 +504,18 @@ async function handleActivityChange(activityId: number) {
   selectedActivityId.value = activityId;
   spotlightIndex.value = 0;
   configureAutoRotate();
+  await syncShowcaseRoute();
 }
 
 function goBack() {
-  router.push({ name: "teacher", query: selectedClassroomId.value ? { classroomId: String(selectedClassroomId.value) } : undefined });
+  router.push({
+    name: "teacher",
+    query: {
+      ...(selectedClassroomId.value ? { classroomId: String(selectedClassroomId.value) } : {}),
+      ...(selectedCourseId.value ? { courseId: String(selectedCourseId.value) } : {}),
+      tab: "courses",
+    },
+  });
 }
 
 function prevSpotlight() {
@@ -527,6 +575,60 @@ async function toggleFullscreen() {
     ElMessage.error(error instanceof Error ? error.message : "切换全屏失败");
   }
 }
+function parsePositiveInt(value: unknown) {
+  const normalized = Array.isArray(value) ? value[0] : value;
+  const parsed = Number(normalized ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function syncShowcaseRoute(targetCourseId: number | null = selectedCourseId.value) {
+  const query: Record<string, string> = {};
+  if (selectedClassroomId.value) {
+    query.classroomId = String(selectedClassroomId.value);
+  }
+  if (selectedActivityId.value) {
+    query.activityId = String(selectedActivityId.value);
+  }
+
+  isSyncingShowcaseRoute = true;
+  try {
+    await router.replace({
+      name: "teacher-showcase",
+      params: targetCourseId ? { courseId: targetCourseId } : undefined,
+      query,
+    });
+  } finally {
+    isSyncingShowcaseRoute = false;
+  }
+}
+
+watch(
+  () => [route.params.courseId, route.query.classroomId, route.query.activityId],
+  async ([courseValue, classroomValue, activityValue]) => {
+    if (isSyncingShowcaseRoute || !dashboard.value) {
+      return;
+    }
+
+    const nextCourseId = parsePositiveInt(courseValue);
+    const nextClassroomId = parsePositiveInt(classroomValue);
+    const nextActivityId = parsePositiveInt(activityValue) ?? 0;
+
+    if (nextActivityId !== selectedActivityId.value) {
+      selectedActivityId.value = nextActivityId;
+    }
+
+    if (nextClassroomId && nextClassroomId !== selectedClassroomId.value) {
+      await loadDashboardAndCourse(nextClassroomId, nextCourseId, nextActivityId);
+      return;
+    }
+
+    if (nextCourseId && nextCourseId !== selectedCourseId.value) {
+      selectedCourseId.value = nextCourseId;
+      await loadCourseDetail(nextCourseId);
+    }
+  },
+);
+
 function displayModeLabel(_value: boolean) {
   return classroomDisplayMode.value ? "班级展示模式" : "讲评工作模式";
 }

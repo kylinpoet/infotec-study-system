@@ -28,13 +28,20 @@
         :title="item.title"
         :value="item.value"
         :hint="item.hint"
-      />
+      >
+        <template #icon>
+          <el-icon><component :is="studentStatIcon(item.title)" /></el-icon>
+        </template>
+      </StatCard>
     </div>
 
     <el-tabs v-model="activeTab" class="workspace-tabs">
       <el-tab-pane label="学习总览" name="overview">
         <div class="workspace-grid workspace-grid--student-overview">
           <SectionCard eyebrow="整体表现" title="学生整体状况">
+            <template #icon>
+              <el-icon><Trophy /></el-icon>
+            </template>
             <div class="student-summary-board">
               <div class="analytics-strip">
                 <div class="analytics-tile analytics-tile--accent">
@@ -81,12 +88,18 @@
           </SectionCard>
 
           <SectionCard eyebrow="图表分析" title="学习成长图表">
+            <template #icon>
+              <el-icon><DataAnalysis /></el-icon>
+            </template>
             <div class="chart-grid">
               <ChartPanelCard v-for="panel in dashboard.charts" :key="panel.key" :panel="panel" />
             </div>
           </SectionCard>
 
           <SectionCard eyebrow="最近反馈" title="课程反馈回流">
+            <template #icon>
+              <el-icon><Collection /></el-icon>
+            </template>
             <div class="info-list">
               <div v-for="item in dashboard.recent_feedback" :key="item.title" class="info-list-item">
                 <div>
@@ -431,7 +444,16 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { UploadFilled } from "@element-plus/icons-vue";
+import {
+  Collection,
+  Compass,
+  DataAnalysis,
+  EditPen,
+  Finished,
+  Reading,
+  Trophy,
+  UploadFilled,
+} from "@element-plus/icons-vue";
 
 import { api } from "../api/client";
 import AssistantDrawer from "../components/AssistantDrawer.vue";
@@ -461,6 +483,8 @@ const courseLoading = ref(false);
 const submittingAssignmentId = ref<number | null>(null);
 const submittingWorkId = ref<number | null>(null);
 const submittingReviewId = ref<number | null>(null);
+const selectedActivityId = ref<number | null>(null);
+const studentWorkflowStep = ref(0);
 const submissionMessage = ref("");
 const submissionError = ref("");
 
@@ -482,6 +506,41 @@ const featuredActivity = computed<ActivityTaskDescriptor | null>(() => {
     courseDetail.value.activities[0] ??
     null
   );
+});
+
+const selectedActivity = computed<ActivityTaskDescriptor | null>(() => {
+  if (!courseDetail.value) {
+    return null;
+  }
+  return (
+    courseDetail.value.activities.find((item) => item.id === selectedActivityId.value) ??
+    featuredActivity.value ??
+    courseDetail.value.activities[0] ??
+    null
+  );
+});
+
+const studentWorkflowSteps = computed(() => {
+  const activity = selectedActivity.value;
+  if (!activity) {
+    return [];
+  }
+
+  const steps = [{ key: "guide", title: "任务导览", description: "先看要求与目标" }];
+  if (activity.spec?.questions?.length) {
+    steps.push({ key: "assignment", title: "交互作答", description: "完成课堂练习" });
+  }
+  if (activity.accepted_file_types.length) {
+    steps.push({ key: "submission", title: "作品提交", description: "上传图片或文档" });
+  }
+  if (activity.review_enabled || activity.my_submission || activity.my_review_queue.length) {
+    steps.push({ key: "review", title: "互评复盘", description: "完成评价与回看" });
+  }
+  return steps;
+});
+
+const currentStudentWorkflowStep = computed(() => {
+  return studentWorkflowSteps.value[studentWorkflowStep.value] ?? studentWorkflowSteps.value[0] ?? null;
 });
 
 onMounted(async () => {
@@ -531,6 +590,11 @@ async function loadCourseDetail(courseId: number) {
   try {
     courseDetail.value = await api.getStudentCourseDetail(courseId, session.user.id);
     courseTab.value = "activities";
+    selectedActivityId.value =
+      courseDetail.value.activities.find((item) => item.id === courseDetail.value?.featured_activity_id)?.id ??
+      courseDetail.value.activities[0]?.id ??
+      null;
+    studentWorkflowStep.value = 0;
   } finally {
     courseLoading.value = false;
   }
@@ -539,6 +603,32 @@ async function loadCourseDetail(courseId: number) {
 function selectCourse(courseId: number) {
   selectedCourseId.value = courseId;
   activeTab.value = "courses";
+}
+
+function selectActivity(activityId: number) {
+  selectedActivityId.value = activityId;
+  studentWorkflowStep.value = 0;
+}
+
+function nextStudentWorkflowStep() {
+  studentWorkflowStep.value = Math.min(studentWorkflowStep.value + 1, studentWorkflowSteps.value.length - 1);
+}
+
+function prevStudentWorkflowStep() {
+  studentWorkflowStep.value = Math.max(studentWorkflowStep.value - 1, 0);
+}
+
+function studentStatIcon(title: string) {
+  if (title.includes("总分") || title.includes("成绩")) {
+    return Trophy;
+  }
+  if (title.includes("课程")) {
+    return Reading;
+  }
+  if (title.includes("作业") || title.includes("活动")) {
+    return EditPen;
+  }
+  return Finished;
 }
 
 function ensureAnswers(activityId: number) {
