@@ -16,3 +16,11 @@
 [2m22:36:03[22m [36m[1m[vite][22m[39m server restarted.
 [2m22:39:25[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
 [2m22:39:25[22m [36m[1m[vite][22m[39m server restarted.
+[2m08:04:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33melement-plus/es/components/button/index, element-plus/es/components/card/index, element-plus/es/components/checkbox/index, element-plus/es/components/container/index, element-plus/es/components/date-picker/index, element-plus/es/components/dialog/index, element-plus/es/components/drawer/index, element-plus/es/components/empty/index, element-plus/es/components/form/index, element-plus/es/components/icon/index, element-plus/es/components/input/index, element-plus/es/components/loading/index, element-plus/es/components/select/index, element-plus/es/components/radio/index, element-plus/es/components/skeleton/index, element-plus/es/components/slider/index, element-plus/es/components/space/index, element-plus/es/components/steps/index, element-plus/es/components/switch/index, element-plus/es/components/tabs/index, element-plus/es/components/tag/index, element-plus/es/components/timeline/index, element-plus/es/components/upload/index, element-plus/es/components/steps/style/css, element-plus/es/components/step/style/css[32m[39m
+[2m08:04:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ optimized dependencies changed. reloading[39m
+[2m08:19:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/element.ts[22m
+[2m08:19:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.vue[22m
+[2m08:19:47[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalAdminView.vue[22m
+[2m08:20:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme.css[22m
+[2m08:21:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33melement-plus/es/components/input-number/index, element-plus/es/components/input-number/style/css[32m[39m
+[2m08:21:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ optimized dependencies changed. reloading[39m
