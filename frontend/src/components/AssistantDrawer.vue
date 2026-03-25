@@ -1,11 +1,17 @@
 <template>
   <div
     class="assistant-float"
-    :class="{ 'assistant-float--expanded': isExpanded }"
+    :class="{ 'assistant-float--expanded': isExpanded, 'assistant-float--dragging': dragging }"
+    :style="floatStyle"
     @mouseenter="hovered = true"
     @mouseleave="hovered = false"
   >
-    <button type="button" class="assistant-float__trigger" @click="togglePinned">
+    <button
+      type="button"
+      class="assistant-float__trigger"
+      @pointerdown="startDrag"
+      @click="handleTriggerClick"
+    >
       <div class="assistant-float__avatar">
         <ZodiacAgentAvatar :animal-key="session.user?.avatar ?? 'dragon'" compact />
       </div>
@@ -87,7 +93,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import ZodiacAgentAvatar from "./ZodiacAgentAvatar.vue";
 
@@ -112,6 +118,13 @@ const emit = defineEmits<{
 const session = useSessionStore();
 const hovered = ref(false);
 const pinned = ref(props.modelValue);
+const dragging = ref(false);
+const topOffset = ref(260);
+const suppressToggle = ref(false);
+
+let dragStartY = 0;
+let dragStartTop = 0;
+let dragMoved = false;
 
 watch(
   () => props.modelValue,
@@ -126,12 +139,102 @@ watch(pinned, (value) => {
 
 const isExpanded = computed(() => hovered.value || pinned.value);
 const visibleSuggestions = computed(() => props.assistant.suggestions.slice(0, 4));
+const floatStyle = computed(() => ({
+  top: `${topOffset.value}px`
+}));
 const badgeLabel = computed(() => {
   const title = props.assistant.title;
   return title.includes("课程") ? "课程" : "通用";
 });
 
-function togglePinned() {
+onMounted(() => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const stored = window.localStorage.getItem("assistant-float-top");
+  if (stored) {
+    topOffset.value = clampTop(Number(stored));
+  } else {
+    topOffset.value = clampTop(window.innerHeight * 0.42);
+  }
+  window.addEventListener("resize", handleResize);
+});
+
+onBeforeUnmount(() => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.removeEventListener("resize", handleResize);
+  detachDragListeners();
+});
+
+function clampTop(value: number) {
+  if (typeof window === "undefined") {
+    return value;
+  }
+  const maxTop = Math.max(window.innerHeight - 140, 120);
+  return Math.min(Math.max(value, 96), maxTop);
+}
+
+function handleResize() {
+  topOffset.value = clampTop(topOffset.value);
+}
+
+function handleTriggerClick() {
+  if (suppressToggle.value) {
+    suppressToggle.value = false;
+    return;
+  }
   pinned.value = !pinned.value;
+}
+
+function startDrag(event: PointerEvent) {
+  if (event.button !== 0) {
+    return;
+  }
+  dragging.value = true;
+  hovered.value = true;
+  dragStartY = event.clientY;
+  dragStartTop = topOffset.value;
+  dragMoved = false;
+  attachDragListeners();
+}
+
+function attachDragListeners() {
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", stopDrag);
+  window.addEventListener("pointercancel", stopDrag);
+}
+
+function detachDragListeners() {
+  window.removeEventListener("pointermove", onPointerMove);
+  window.removeEventListener("pointerup", stopDrag);
+  window.removeEventListener("pointercancel", stopDrag);
+}
+
+function onPointerMove(event: PointerEvent) {
+  if (!dragging.value) {
+    return;
+  }
+  const deltaY = event.clientY - dragStartY;
+  if (Math.abs(deltaY) > 4) {
+    dragMoved = true;
+  }
+  topOffset.value = clampTop(dragStartTop + deltaY);
+}
+
+function stopDrag() {
+  if (!dragging.value) {
+    return;
+  }
+  dragging.value = false;
+  detachDragListeners();
+  if (dragMoved) {
+    suppressToggle.value = true;
+    window.setTimeout(() => {
+      suppressToggle.value = false;
+    }, 120);
+  }
+  window.localStorage.setItem("assistant-float-top", String(topOffset.value));
 }
 </script>
