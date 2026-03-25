@@ -1,8 +1,10 @@
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import PortalAnnouncementRecord, PortalSchoolProfile, Tenant, User
+from app.db.models import PortalAnnouncementRecord, PortalSchoolProfile, SchoolRegistrationApplication, Tenant, User
 from app.db.session import get_db
 from app.schemas.contracts import (
     LLMConfigResponse,
@@ -14,10 +16,14 @@ from app.schemas.contracts import (
     PortalHeroUpdateRequest,
     PortalSchoolUpdateRequest,
     QuickStat,
+    SchoolApplication,
+    SchoolApplicationReviewRequest,
 )
 from app.services.portal_content import (
+    DEFAULT_SCHOOL_THEME,
     build_portal_admin_school_items,
     get_or_create_portal_config,
+    serialize_school_application,
 )
 from app.services.llm_config import (
     build_llm_config_response,
@@ -42,11 +48,18 @@ def get_portal_admin_dashboard(user_id: int, db: Session = Depends(get_db)):
     config = get_or_create_portal_config(db)
     llm_config = get_or_create_llm_config(db)
     schools = build_portal_admin_school_items(db)
+    school_applications = db.scalars(
+        select(SchoolRegistrationApplication).order_by(
+            SchoolRegistrationApplication.created_at.desc(),
+            SchoolRegistrationApplication.id.desc(),
+        )
+    ).all()
     announcements = db.scalars(
         select(PortalAnnouncementRecord)
         .order_by(PortalAnnouncementRecord.display_order.asc(), PortalAnnouncementRecord.published_at.desc())
     ).all()
     active_school_count = len([school for school in schools if school.code])
+    pending_application_count = len([item for item in school_applications if item.status == "pending"])
 
     return PortalAdminDashboardResponse(
         admin_name=admin.display_name,
@@ -67,14 +80,106 @@ def get_portal_admin_dashboard(user_id: int, db: Session = Depends(get_db)):
             )
             for item in announcements
         ],
+        school_applications=[serialize_school_application(item) for item in school_applications],
         quick_stats=[
             QuickStat(title="学校门户", value=str(active_school_count), hint="支持在同一后台维护多校门户资料"),
             QuickStat(title="门户公告", value=str(len(announcements)), hint="可上架、下架和调整公告顺序"),
+            QuickStat(title="待审核申请", value=str(pending_application_count), hint="学校申请入驻后会在这里集中审核"),
             QuickStat(title="当前主推学校", value=config.featured_school_code or "--", hint="首页首屏默认展示学校"),
             QuickStat(title="当前模型", value=llm_config.model_name, hint="后台可统一维护大模型连接参数"),
         ],
         llm_config=build_llm_config_response(llm_config),
     )
+
+
+def _ensure_school_application_is_unique(application: SchoolRegistrationApplication, db: Session):
+    existing_tenant = db.scalar(select(Tenant).where(Tenant.code == application.school_code).limit(1))
+    if existing_tenant:
+        raise HTTPException(status_code=409, detail="该学校编码已存在，请修改后重新审核。")
+
+    existing_user = db.scalar(select(User).where(User.username == application.applicant_username).limit(1))
+    if existing_user:
+        raise HTTPException(status_code=409, detail="申请人用户名已被占用，请退回后让学校重新提交。")
+
+
+def _approve_school_application(application: SchoolRegistrationApplication, admin: User, db: Session):
+    _ensure_school_application_is_unique(application, db)
+
+    tenant = Tenant(
+        name=application.school_name,
+        code=application.school_code,
+        status="active",
+        theme_json=DEFAULT_SCHOOL_THEME,
+        ai_quota_json={"teacher_monthly_tokens": 2_000_000, "student_daily_hints": 20},
+    )
+    db.add(tenant)
+    db.flush()
+
+    db.add(
+        PortalSchoolProfile(
+            tenant_id=tenant.id,
+            district=application.district,
+            slogan=application.slogan,
+            grade_scope=application.grade_scope,
+            features_json=[
+                {"title": "学校门户", "description": "支持统一展示学校特色、主题风格与登录入口。"},
+                {"title": "校级后台", "description": "校级管理员可维护本校教师账号与学校资料。"},
+                {"title": "课程平台", "description": "学校开通后可继续接入教师工作台、学生中心与 AI 教学能力。"},
+            ],
+            metrics_json=[
+                {"title": "教师账号", "value": "1", "hint": "默认首位申请人开通为校级管理员"},
+                {"title": "学校状态", "value": "已开通", "hint": "通过审核后会立即出现在门户学校列表中"},
+                {"title": "待配置课程", "value": "0", "hint": "可由学校管理员继续补充课程目录与教师成员"},
+            ],
+        )
+    )
+    db.flush()
+
+    db.add(
+        User(
+            tenant_id=tenant.id,
+            username=application.applicant_username,
+            password_hash=application.applicant_password_hash,
+            role="school_admin",
+            display_name=application.applicant_display_name,
+            avatar="dog",
+            status="active",
+        )
+    )
+
+    application.status = "approved"
+    application.review_note = application.review_note or "平台管理员已审核通过。"
+    application.reviewed_by_user_id = admin.id
+    application.reviewed_at = datetime.now(UTC)
+    application.approved_tenant_id = tenant.id
+
+
+@router.post("/portal/school-applications/{application_id}/review", response_model=SchoolApplication)
+def review_school_application(
+    application_id: int,
+    payload: SchoolApplicationReviewRequest,
+    db: Session = Depends(get_db),
+):
+    admin = _get_admin(payload.admin_user_id, db)
+    application = db.get(SchoolRegistrationApplication, application_id)
+    if not application:
+        raise HTTPException(status_code=404, detail="学校申请不存在。")
+    if application.status != "pending":
+        raise HTTPException(status_code=409, detail="该申请已处理，请刷新列表。")
+
+    review_note = payload.review_note.strip() if payload.review_note and payload.review_note.strip() else None
+    application.review_note = review_note
+
+    if payload.decision == "approve":
+        _approve_school_application(application, admin, db)
+    else:
+        application.status = "rejected"
+        application.reviewed_by_user_id = admin.id
+        application.reviewed_at = datetime.now(UTC)
+
+    db.commit()
+    db.refresh(application)
+    return serialize_school_application(application)
 
 
 @router.put("/portal/hero", response_model=PortalHeroSettings)

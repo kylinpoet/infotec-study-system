@@ -11,6 +11,9 @@ import type {
   PortalAdminDashboardResponse,
   PortalAnnouncement,
   PortalHeroSettings,
+  SchoolAdminDashboardResponse,
+  SchoolApplication,
+  SchoolStaffMember,
   PublishResponse,
   StartClassResponse,
   StudentSettingsResponse,
@@ -45,6 +48,24 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   getPortal() {
     return request<PortalResponse>("/public/portal");
+  },
+  createSchoolApplication(payload: {
+    school_name: string;
+    school_code: string;
+    district: string;
+    grade_scope: string;
+    slogan: string;
+    contact_name: string;
+    contact_phone: string;
+    applicant_display_name: string;
+    applicant_username: string;
+    applicant_password: string;
+    note?: string | null;
+  }) {
+    return request<{ message: string; application: SchoolApplication }>("/public/school-applications", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
   },
   login(username: string, password: string, schoolCode?: string | null) {
     return request<LoginResponse>("/auth/login", {
@@ -134,6 +155,15 @@ export const api = {
   ) {
     return request<PortalAnnouncement>(`/admin/portal/announcements/${announcementId}`, {
       method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+  reviewSchoolApplication(
+    applicationId: number,
+    payload: { admin_user_id: number; decision: "approve" | "reject"; review_note?: string | null }
+  ) {
+    return request<SchoolApplication>(`/admin/portal/school-applications/${applicationId}/review`, {
+      method: "POST",
       body: JSON.stringify(payload)
     });
   },
@@ -283,6 +313,47 @@ export const api = {
   ) {
     return request<SubmissionReviewResponse>(`/student/submissions/${submissionId}/reviews`, {
       method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  getSchoolAdminDashboard(userId: number) {
+    return request<SchoolAdminDashboardResponse>(`/school-admin/dashboard/${userId}`);
+  },
+  updateSchoolProfile(payload: {
+    admin_user_id: number;
+    name: string;
+    district: string;
+    slogan: string;
+    grade_scope: string;
+    theme: { primary: string; secondary: string; accent: string };
+    features: Array<{ title: string; description: string }>;
+    metrics: Array<{ title: string; value: string; hint: string }>;
+  }) {
+    return request<SchoolAdminDashboardResponse>("/school-admin/profile", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+  createSchoolTeacher(payload: {
+    admin_user_id: number;
+    username: string;
+    password: string;
+    display_name: string;
+    subject: string;
+    title?: string | null;
+    teacher_no?: string | null;
+  }) {
+    return request<{ message: string; staff_member: SchoolStaffMember }>("/school-admin/staff", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  updateSchoolStaffRole(
+    staffUserId: number,
+    payload: { admin_user_id: number; role: "teacher" | "school_admin" }
+  ) {
+    return request<{ message: string; staff_member: SchoolStaffMember }>(`/school-admin/staff/${staffUserId}/role`, {
+      method: "PUT",
       body: JSON.stringify(payload)
     });
   }

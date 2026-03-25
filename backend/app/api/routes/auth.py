@@ -35,7 +35,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
             classroom = db.get(Classroom, profile.classroom_id)
             classroom_label = classroom.name if classroom else profile.classroom_label
 
-    if user.role == "teacher":
+    if user.role in {"teacher", "school_admin"}:
         db.scalar(select(TeacherProfile).where(TeacherProfile.user_id == user.id))
         course = db.scalar(
             select(Course)

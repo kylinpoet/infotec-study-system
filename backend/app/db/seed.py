@@ -898,6 +898,15 @@ def seed_database(session: Session):
         display_name="门户管理员",
         avatar="rooster",
     )
+    _upsert_user(
+        session,
+        tenant_id=demo_tenant.id,
+        username="xingzhiadmin",
+        password="444444",
+        role="school_admin",
+        display_name="行知校管",
+        avatar="dog",
+    )
 
     classrooms = {
         blueprint["name"]: _upsert_classroom(

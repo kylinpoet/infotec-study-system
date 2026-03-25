@@ -14,6 +14,7 @@
         <RouterLink v-if="session.user?.role === 'teacher'" class="app-nav__link" to="/teacher/settings">教师设置</RouterLink>
         <RouterLink v-if="session.user?.role === 'student'" class="app-nav__link" to="/student/settings">学生设置</RouterLink>
         <RouterLink v-if="session.user?.role === 'admin'" class="app-nav__link" to="/admin">门户后台</RouterLink>
+        <RouterLink v-if="session.user?.role === 'school_admin'" class="app-nav__link" to="/school-admin">学校后台</RouterLink>
       </nav>
 
       <div class="app-toolbar">
@@ -45,6 +46,8 @@
                   ? "教师账号"
                   : session.user.role === "student"
                     ? "学生账号"
+                    : session.user.role === "school_admin"
+                      ? "学校管理员"
                     : "门户管理员"
               }}
             </span>
@@ -72,5 +75,5 @@ import { useSessionStore } from "./stores/session";
 const route = useRoute();
 const session = useSessionStore();
 const { currentThemeKey, themePresets, applyThemePreset } = useThemePreset();
-const isWorkspaceRoute = computed(() => ["/teacher", "/student", "/admin"].some((path) => route.path.startsWith(path)));
+const isWorkspaceRoute = computed(() => ["/teacher", "/student", "/admin", "/school-admin"].some((path) => route.path.startsWith(path)));
 </script>

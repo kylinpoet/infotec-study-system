@@ -433,3 +433,106 @@ def test_llm_config_rejects_enabled_state_without_api_key():
             },
         )
         assert invalid_enable.status_code == 422
+
+
+def test_school_application_review_and_school_admin_management():
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    unique_suffix = uuid.uuid4().hex[:8]
+    school_code = f"test-{unique_suffix}"
+    admin_username = f"admin-{unique_suffix}"
+    teacher_username = f"teacher-{unique_suffix}"
+
+    with TestClient(app) as client:
+        application = client.post(
+            "/api/v1/public/school-applications",
+            json={
+                "school_name": "测试未来学校",
+                "school_code": school_code,
+                "district": "浦东新区",
+                "grade_scope": "小学 - 初中",
+                "slogan": "用于验证学校申请审核与学校后台。",
+                "contact_name": "李老师",
+                "contact_phone": "13800000000",
+                "applicant_display_name": "测试校管",
+                "applicant_username": admin_username,
+                "applicant_password": "555555",
+                "note": "请开通学校管理员后台。",
+            },
+        )
+        assert application.status_code == 200
+        application_payload = application.json()
+        assert application_payload["application"]["status"] == "pending"
+
+        platform_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "portaladmin", "password": "333333", "school_code": "xingzhi-school"},
+        )
+        assert platform_login.status_code == 200
+        platform_admin = platform_login.json()["user"]
+
+        dashboard = client.get(f"/api/v1/admin/portal/dashboard/{platform_admin['id']}")
+        assert dashboard.status_code == 200
+        dashboard_payload = dashboard.json()
+        target_application = next(
+            item for item in dashboard_payload["school_applications"] if item["school_code"] == school_code
+        )
+        assert target_application["status"] == "pending"
+
+        approval = client.post(
+            f"/api/v1/admin/portal/school-applications/{target_application['id']}/review",
+            json={
+                "admin_user_id": platform_admin["id"],
+                "decision": "approve",
+                "review_note": "资料完整，开通学校后台。",
+            },
+        )
+        assert approval.status_code == 200
+        assert approval.json()["status"] == "approved"
+        assert approval.json()["approved_tenant_id"] is not None
+
+        portal = client.get("/api/v1/public/portal")
+        assert portal.status_code == 200
+        assert any(item["code"] == school_code for item in portal.json()["schools"])
+
+        school_admin_login = client.post(
+            "/api/v1/auth/login",
+            json={"username": admin_username, "password": "555555", "school_code": school_code},
+        )
+        assert school_admin_login.status_code == 200
+        school_admin = school_admin_login.json()["user"]
+        assert school_admin["role"] == "school_admin"
+
+        school_admin_dashboard = client.get(f"/api/v1/school-admin/dashboard/{school_admin['id']}")
+        assert school_admin_dashboard.status_code == 200
+        school_dashboard_payload = school_admin_dashboard.json()
+        assert school_dashboard_payload["school"]["code"] == school_code
+        assert len(school_dashboard_payload["staff_members"]) == 1
+
+        create_teacher = client.post(
+            "/api/v1/school-admin/staff",
+            json={
+                "admin_user_id": school_admin["id"],
+                "username": teacher_username,
+                "password": "666666",
+                "display_name": "新教师",
+                "subject": "信息科技",
+                "title": "教研组长",
+                "teacher_no": "T-900",
+            },
+        )
+        assert create_teacher.status_code == 200
+        created_teacher = create_teacher.json()["staff_member"]
+        assert created_teacher["role"] == "teacher"
+        assert created_teacher["teacher_no"] == "T-900"
+
+        promote_teacher = client.put(
+            f"/api/v1/school-admin/staff/{created_teacher['id']}/role",
+            json={"admin_user_id": school_admin["id"], "role": "school_admin"},
+        )
+        assert promote_teacher.status_code == 200
+        assert promote_teacher.json()["staff_member"]["role"] == "school_admin"

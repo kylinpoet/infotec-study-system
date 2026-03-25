@@ -13,6 +13,7 @@ export const router = createRouter({
     },
     { path: "/student", name: "student", component: () => import("../views/StudentCenterView.vue") },
     { path: "/student/settings", name: "student-settings", component: () => import("../views/StudentSettingsView.vue") },
-    { path: "/admin", name: "admin", component: () => import("../views/PortalAdminView.vue") }
+    { path: "/admin", name: "admin", component: () => import("../views/PortalAdminView.vue") },
+    { path: "/school-admin", name: "school-admin", component: () => import("../views/SchoolAdminView.vue") }
   ]
 });

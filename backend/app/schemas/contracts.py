@@ -71,6 +71,44 @@ class PortalResponse(BaseModel):
     platform_highlights: list[PortalFeature] = Field(default_factory=list)
 
 
+class SchoolApplication(BaseModel):
+    id: int
+    school_name: str
+    school_code: str
+    district: str
+    grade_scope: str
+    slogan: str
+    contact_name: str
+    contact_phone: str
+    applicant_display_name: str
+    applicant_username: str
+    note: str | None = None
+    status: str
+    review_note: str | None = None
+    created_at: datetime
+    reviewed_at: datetime | None = None
+    approved_tenant_id: int | None = None
+
+
+class SchoolApplicationCreateRequest(BaseModel):
+    school_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
+    school_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=60)]
+    district: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
+    grade_scope: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=60)]
+    slogan: Annotated[str, StringConstraints(strip_whitespace=True, min_length=4, max_length=200)]
+    contact_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
+    contact_phone: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=40)]
+    applicant_display_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
+    applicant_username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=60)]
+    applicant_password: Annotated[str, StringConstraints(min_length=5, max_length=120)]
+    note: str | None = None
+
+
+class SchoolApplicationSubmitResponse(BaseModel):
+    message: str
+    application: SchoolApplication
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -175,6 +213,7 @@ class PortalAdminDashboardResponse(BaseModel):
     hero: PortalHeroSettings
     schools: list[PortalSchoolAdminItem] = Field(default_factory=list)
     announcements: list[PortalAnnouncement] = Field(default_factory=list)
+    school_applications: list[SchoolApplication] = Field(default_factory=list)
     quick_stats: list[QuickStat] = Field(default_factory=list)
     llm_config: LLMConfigResponse
 
@@ -206,6 +245,18 @@ class PortalAnnouncementUpsertRequest(BaseModel):
     is_active: bool = True
 
 
+class SchoolApplicationReviewRequest(BaseModel):
+    admin_user_id: int
+    decision: Annotated[str, StringConstraints(strip_whitespace=True, min_length=6, max_length=20)]
+    review_note: str | None = None
+
+    @model_validator(mode="after")
+    def validate_decision(self):
+        if self.decision not in {"approve", "reject"}:
+            raise ValueError("decision 仅支持 approve 或 reject。")
+        return self
+
+
 class LLMConfigUpdateRequest(BaseModel):
     admin_user_id: int
     provider_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
@@ -231,6 +282,63 @@ class AgentCard(BaseModel):
     role: str
     status: str
     scope_label: str
+
+
+class SchoolStaffMember(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    role: str
+    status: str
+    teacher_no: str | None = None
+    subject: str | None = None
+    title: str | None = None
+    created_at: datetime
+
+
+class SchoolAdminDashboardResponse(BaseModel):
+    admin_name: str
+    tenant_name: str
+    school: PortalSchoolAdminItem
+    quick_stats: list[QuickStat] = Field(default_factory=list)
+    staff_members: list[SchoolStaffMember] = Field(default_factory=list)
+
+
+class SchoolProfileUpdateRequest(BaseModel):
+    admin_user_id: int
+    name: str
+    district: str
+    slogan: str
+    grade_scope: str
+    theme: ThemePalette
+    features: list[PortalFeature] = Field(default_factory=list)
+    metrics: list[QuickStat] = Field(default_factory=list)
+
+
+class SchoolStaffCreateRequest(BaseModel):
+    admin_user_id: int
+    username: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=60)]
+    password: Annotated[str, StringConstraints(min_length=5, max_length=120)]
+    display_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
+    subject: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=40)]
+    title: str | None = None
+    teacher_no: str | None = None
+
+
+class SchoolStaffRoleUpdateRequest(BaseModel):
+    admin_user_id: int
+    role: Annotated[str, StringConstraints(strip_whitespace=True, min_length=7, max_length=20)]
+
+    @model_validator(mode="after")
+    def validate_role(self):
+        if self.role not in {"teacher", "school_admin"}:
+            raise ValueError("role 仅支持 teacher 或 school_admin。")
+        return self
+
+
+class SchoolStaffMutationResponse(BaseModel):
+    message: str
+    staff_member: SchoolStaffMember
 
 
 class AssistantDescriptor(BaseModel):

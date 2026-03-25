@@ -177,6 +177,7 @@
         <div class="demo-button-row demo-button-row--portal">
           <el-button round @click="useDemo('teacher')">教师演示账号</el-button>
           <el-button round @click="useDemo('student')">学生演示账号</el-button>
+          <el-button round @click="applicationDialogVisible = true">学校申请入驻</el-button>
         </div>
 
         <div class="login-panel__helper-list">
@@ -338,6 +339,59 @@
         </el-card>
       </div>
     </section>
+
+    <el-dialog v-model="applicationDialogVisible" title="学校申请入驻" width="620px">
+      <el-form label-position="top">
+        <div class="workflow-grid">
+          <div class="workflow-panel">
+            <el-form-item label="学校名称">
+              <el-input v-model="schoolApplicationForm.school_name" />
+            </el-form-item>
+            <el-form-item label="学校编码">
+              <el-input v-model="schoolApplicationForm.school_code" placeholder="建议使用英文或拼音缩写" />
+            </el-form-item>
+            <el-form-item label="所在区">
+              <el-input v-model="schoolApplicationForm.district" />
+            </el-form-item>
+            <el-form-item label="覆盖学段">
+              <el-input v-model="schoolApplicationForm.grade_scope" />
+            </el-form-item>
+            <el-form-item label="学校标语">
+              <el-input v-model="schoolApplicationForm.slogan" type="textarea" :rows="2" />
+            </el-form-item>
+          </div>
+
+          <div class="workflow-panel workflow-panel--aside">
+            <el-form-item label="联系人">
+              <el-input v-model="schoolApplicationForm.contact_name" />
+            </el-form-item>
+            <el-form-item label="联系电话">
+              <el-input v-model="schoolApplicationForm.contact_phone" />
+            </el-form-item>
+            <el-form-item label="首位管理员姓名">
+              <el-input v-model="schoolApplicationForm.applicant_display_name" />
+            </el-form-item>
+            <el-form-item label="首位管理员账号">
+              <el-input v-model="schoolApplicationForm.applicant_username" />
+            </el-form-item>
+            <el-form-item label="首位管理员密码">
+              <el-input v-model="schoolApplicationForm.applicant_password" show-password />
+            </el-form-item>
+            <el-form-item label="补充说明">
+              <el-input v-model="schoolApplicationForm.note" type="textarea" :rows="3" />
+            </el-form-item>
+          </div>
+        </div>
+      </el-form>
+      <template #footer>
+        <div class="dialog-actions">
+          <el-button @click="applicationDialogVisible = false">取消</el-button>
+          <el-button type="primary" :loading="applicationSubmitting" @click="handleSubmitSchoolApplication">
+            提交申请
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 
   <el-skeleton v-else animated :rows="8" />
@@ -355,7 +409,9 @@ import {
   Reading,
   School
 } from "@element-plus/icons-vue";
+import { ElMessage } from "element-plus";
 import { computed, onMounted, ref } from "vue";
+import { reactive } from "vue";
 import type { Component } from "vue";
 import { useRouter } from "vue-router";
 
@@ -381,6 +437,21 @@ const username = ref("");
 const password = ref("");
 const errorMessage = ref("");
 const loading = ref(false);
+const applicationDialogVisible = ref(false);
+const applicationSubmitting = ref(false);
+const schoolApplicationForm = reactive({
+  school_name: "",
+  school_code: "",
+  district: "",
+  grade_scope: "",
+  slogan: "",
+  contact_name: "",
+  contact_phone: "",
+  applicant_display_name: "",
+  applicant_username: "",
+  applicant_password: "",
+  note: ""
+});
 
 const selectedSchool = computed(() => {
   if (!portal.value) {
@@ -439,7 +510,15 @@ async function handleSubmit() {
   loading.value = true;
   try {
     const user = await session.login(username.value, password.value, selectedSchool.value.code);
-    await router.push(user.role === "teacher" ? "/teacher" : "/student");
+    const nextPath =
+      user.role === "teacher"
+        ? "/teacher"
+        : user.role === "student"
+          ? "/student"
+          : user.role === "school_admin"
+            ? "/school-admin"
+            : "/admin";
+    await router.push(nextPath);
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : "登录失败";
   } finally {
@@ -451,6 +530,42 @@ function useDemo(role: "teacher" | "student") {
   selectedSchoolCode.value = "xingzhi-school";
   username.value = role === "teacher" ? "kylin" : "240101";
   password.value = role === "teacher" ? "222221" : "12345";
+}
+
+async function handleSubmitSchoolApplication() {
+  applicationSubmitting.value = true;
+  try {
+    const response = await api.createSchoolApplication({
+      school_name: schoolApplicationForm.school_name.trim(),
+      school_code: schoolApplicationForm.school_code.trim(),
+      district: schoolApplicationForm.district.trim(),
+      grade_scope: schoolApplicationForm.grade_scope.trim(),
+      slogan: schoolApplicationForm.slogan.trim(),
+      contact_name: schoolApplicationForm.contact_name.trim(),
+      contact_phone: schoolApplicationForm.contact_phone.trim(),
+      applicant_display_name: schoolApplicationForm.applicant_display_name.trim(),
+      applicant_username: schoolApplicationForm.applicant_username.trim(),
+      applicant_password: schoolApplicationForm.applicant_password,
+      note: schoolApplicationForm.note.trim() || null
+    });
+    ElMessage.success(response.message);
+    applicationDialogVisible.value = false;
+    schoolApplicationForm.school_name = "";
+    schoolApplicationForm.school_code = "";
+    schoolApplicationForm.district = "";
+    schoolApplicationForm.grade_scope = "";
+    schoolApplicationForm.slogan = "";
+    schoolApplicationForm.contact_name = "";
+    schoolApplicationForm.contact_phone = "";
+    schoolApplicationForm.applicant_display_name = "";
+    schoolApplicationForm.applicant_username = "";
+    schoolApplicationForm.applicant_password = "";
+    schoolApplicationForm.note = "";
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "提交申请失败");
+  } finally {
+    applicationSubmitting.value = false;
+  }
 }
 
 function formatMonth(value: string) {

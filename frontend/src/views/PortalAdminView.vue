@@ -146,6 +146,100 @@
           </div>
         </SectionCard>
 
+        <SectionCard eyebrow="学校入驻" title="学校申请审核">
+          <template #icon><el-icon><School /></el-icon></template>
+          <div class="workflow-grid">
+            <div class="workflow-panel">
+              <div class="workflow-panel__head">
+                <div>
+                  <p class="panel-kicker">申请列表</p>
+                  <h4>待审核与历史申请</h4>
+                </div>
+                <el-tag round effect="plain">{{ dashboard.school_applications.length }} 条</el-tag>
+              </div>
+              <div class="info-list">
+                <button
+                  v-for="item in dashboard.school_applications"
+                  :key="item.id"
+                  type="button"
+                  class="activity-outline-card"
+                  :class="{ 'activity-outline-card--active': selectedApplicationId === item.id }"
+                  @click="selectApplication(item.id)"
+                >
+                  <div class="activity-card__header">
+                    <div>
+                      <strong>{{ item.school_name }}</strong>
+                      <p class="panel-note">{{ item.school_code }} · {{ item.district }}</p>
+                    </div>
+                    <el-tag round :type="applicationStatusType(item.status)">{{ applicationStatusLabel(item.status) }}</el-tag>
+                  </div>
+                  <p class="panel-note">{{ item.applicant_display_name }} · {{ item.contact_phone }}</p>
+                </button>
+              </div>
+            </div>
+
+            <div class="workflow-panel workflow-panel--aside" v-if="selectedApplication">
+              <div class="workflow-panel__head">
+                <div>
+                  <p class="panel-kicker">申请详情</p>
+                  <h4>{{ selectedApplication.school_name }}</h4>
+                </div>
+                <el-tag round :type="applicationStatusType(selectedApplication.status)">
+                  {{ applicationStatusLabel(selectedApplication.status) }}
+                </el-tag>
+              </div>
+
+              <div class="info-list">
+                <div class="info-list-item">
+                  <div>
+                    <strong>学校编码</strong>
+                    <p class="panel-note">{{ selectedApplication.school_code }}</p>
+                  </div>
+                </div>
+                <div class="info-list-item">
+                  <div>
+                    <strong>联系人</strong>
+                    <p class="panel-note">{{ selectedApplication.contact_name }} · {{ selectedApplication.contact_phone }}</p>
+                  </div>
+                </div>
+                <div class="info-list-item">
+                  <div>
+                    <strong>首位管理员</strong>
+                    <p class="panel-note">{{ selectedApplication.applicant_display_name }} · {{ selectedApplication.applicant_username }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <el-form label-position="top">
+                <el-form-item label="学校标语">
+                  <el-input :model-value="selectedApplication.slogan" type="textarea" :rows="2" readonly />
+                </el-form-item>
+                <el-form-item label="审核备注">
+                  <el-input v-model="applicationReviewNote" type="textarea" :rows="3" placeholder="例如：请补充学校门户主图或确认管理员手机号" />
+                </el-form-item>
+              </el-form>
+
+              <div class="hero-actions">
+                <el-button
+                  type="primary"
+                  :disabled="selectedApplication.status !== 'pending'"
+                  :loading="applicationReviewLoading === 'approve'"
+                  @click="handleReviewApplication('approve')"
+                >
+                  通过并开通学校
+                </el-button>
+                <el-button
+                  :disabled="selectedApplication.status !== 'pending'"
+                  :loading="applicationReviewLoading === 'reject'"
+                  @click="handleReviewApplication('reject')"
+                >
+                  驳回申请
+                </el-button>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
         <SectionCard eyebrow="门户公告" title="公告管理">
           <template #icon><el-icon><Bell /></el-icon></template>
           <div class="workflow-grid">
@@ -315,7 +409,7 @@ import { Bell, Monitor, School, Setting, View } from "@element-plus/icons-vue";
 import { api } from "../api/client";
 import SectionCard from "../components/SectionCard.vue";
 import StatCard from "../components/StatCard.vue";
-import type { PortalAdminDashboardResponse, PortalAnnouncement, PortalSchoolAdminItem } from "../types/contracts";
+import type { PortalAdminDashboardResponse, PortalAnnouncement, PortalSchoolAdminItem, SchoolApplication } from "../types/contracts";
 import { useSessionStore } from "../stores/session";
 
 const router = useRouter();
@@ -324,10 +418,12 @@ const session = useSessionStore();
 const dashboard = ref<PortalAdminDashboardResponse | null>(null);
 const selectedSchoolCode = ref<string>("");
 const selectedAnnouncementId = ref<number | null>(null);
+const selectedApplicationId = ref<number | null>(null);
 const heroSaving = ref(false);
 const schoolSaving = ref(false);
 const announcementSaving = ref(false);
 const llmSaving = ref(false);
+const applicationReviewLoading = ref<"approve" | "reject" | null>(null);
 
 const heroForm = reactive({
   hero_title: "",
@@ -352,6 +448,7 @@ const announcementForm = reactive({
   published_at: "",
   is_active: true,
 });
+const applicationReviewNote = ref("");
 
 const llmForm = reactive({
   provider_name: "",
@@ -370,6 +467,10 @@ const llmForm = reactive({
 
 const selectedSchool = computed(() => {
   return dashboard.value?.schools.find((item) => item.code === selectedSchoolCode.value) ?? null;
+});
+
+const selectedApplication = computed(() => {
+  return dashboard.value?.school_applications.find((item) => item.id === selectedApplicationId.value) ?? null;
 });
 
 const previewVars = computed(() => ({
@@ -421,6 +522,11 @@ async function loadDashboard() {
   heroForm.hero_subtitle = dashboard.value.hero.hero_subtitle;
   heroForm.featured_school_code = dashboard.value.hero.featured_school_code ?? dashboard.value.schools[0]?.code ?? "";
   selectedSchoolCode.value = selectedSchoolCode.value || dashboard.value.schools[0]?.code || "";
+  selectedApplicationId.value =
+    dashboard.value.school_applications.find((item) => item.status === "pending")?.id ??
+    dashboard.value.school_applications[0]?.id ??
+    null;
+  applicationReviewNote.value = selectedApplication.value?.review_note ?? "";
   syncSchoolForm();
   syncLlmForm();
   prepareAnnouncement(dashboard.value.announcements[0] ?? null);
@@ -450,6 +556,19 @@ function addFeature() {
 
 function addMetric() {
   schoolForm.metrics.push({ title: "", value: "", hint: "" });
+}
+
+function applicationStatusLabel(status: string) {
+  return status === "approved" ? "已通过" : status === "rejected" ? "已驳回" : "待审核";
+}
+
+function applicationStatusType(status: string) {
+  return status === "approved" ? "success" : status === "rejected" ? "warning" : "info";
+}
+
+function selectApplication(id: number) {
+  selectedApplicationId.value = id;
+  applicationReviewNote.value = selectedApplication.value?.review_note ?? "";
 }
 
 function syncLlmForm() {
@@ -620,6 +739,26 @@ async function handleSaveAnnouncement() {
     ElMessage.error(error instanceof Error ? error.message : "保存失败");
   } finally {
     announcementSaving.value = false;
+  }
+}
+
+async function handleReviewApplication(decision: "approve" | "reject") {
+  if (!session.user || !selectedApplication.value) {
+    return;
+  }
+  applicationReviewLoading.value = decision;
+  try {
+    await api.reviewSchoolApplication(selectedApplication.value.id, {
+      admin_user_id: session.user.id,
+      decision,
+      review_note: applicationReviewNote.value.trim() || null
+    });
+    ElMessage.success(decision === "approve" ? "学校已开通并创建首位管理员" : "学校申请已驳回");
+    await loadDashboard();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : "审核失败");
+  } finally {
+    applicationReviewLoading.value = null;
   }
 }
 </script>

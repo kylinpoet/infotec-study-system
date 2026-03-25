@@ -68,6 +68,28 @@ class PortalSchoolProfile(TimestampMixin, Base):
     metrics_json: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
 
 
+class SchoolRegistrationApplication(TimestampMixin, Base):
+    __tablename__ = "school_registration_applications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    school_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    school_code: Mapped[str] = mapped_column(String(60), nullable=False)
+    district: Mapped[str] = mapped_column(String(80), nullable=False)
+    grade_scope: Mapped[str] = mapped_column(String(60), nullable=False)
+    slogan: Mapped[str] = mapped_column(Text, nullable=False)
+    contact_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    contact_phone: Mapped[str] = mapped_column(String(40), nullable=False)
+    applicant_display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    applicant_username: Mapped[str] = mapped_column(String(60), nullable=False)
+    applicant_password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_tenant_id: Mapped[int | None] = mapped_column(ForeignKey("tenants.id"))
+
+
 class User(TimestampMixin, Base):
     __tablename__ = "users"
 

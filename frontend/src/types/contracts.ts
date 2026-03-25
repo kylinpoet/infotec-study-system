@@ -65,11 +65,30 @@ export interface PortalResponse {
   platform_highlights: PortalFeature[];
 }
 
+export interface SchoolApplication {
+  id: number;
+  school_name: string;
+  school_code: string;
+  district: string;
+  grade_scope: string;
+  slogan: string;
+  contact_name: string;
+  contact_phone: string;
+  applicant_display_name: string;
+  applicant_username: string;
+  note: string | null;
+  status: string;
+  review_note: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  approved_tenant_id: number | null;
+}
+
 export interface SessionUser {
   id: number;
   username: string;
   display_name: string;
-  role: "teacher" | "student" | "admin";
+  role: "teacher" | "student" | "admin" | "school_admin";
   tenant_id: number;
   tenant_code: string | null;
   tenant_name: string;
@@ -149,8 +168,29 @@ export interface PortalAdminDashboardResponse {
   hero: PortalHeroSettings;
   schools: PortalSchoolAdminItem[];
   announcements: PortalAnnouncement[];
+  school_applications: SchoolApplication[];
   quick_stats: QuickStat[];
   llm_config: LLMConfigResponse;
+}
+
+export interface SchoolStaffMember {
+  id: number;
+  username: string;
+  display_name: string;
+  role: "teacher" | "school_admin";
+  status: string;
+  teacher_no: string | null;
+  subject: string | null;
+  title: string | null;
+  created_at: string;
+}
+
+export interface SchoolAdminDashboardResponse {
+  admin_name: string;
+  tenant_name: string;
+  school: PortalSchoolAdminItem;
+  quick_stats: QuickStat[];
+  staff_members: SchoolStaffMember[];
 }
 
 export interface AgentCard {
