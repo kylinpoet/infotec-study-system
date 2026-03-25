@@ -8,58 +8,101 @@
   </div>
 
   <div v-else-if="dashboard" class="workspace-page workspace-page--immersive">
-    <section class="workspace-hero workspace-hero--student">
+    <section class="workspace-hero workspace-hero--student workspace-hero--student-refined">
       <div>
         <p class="panel-kicker">{{ dashboard.tenant_name }}</p>
-        <h2>{{ courseDetail?.course.title ?? `${dashboard.student_name} · ${dashboard.classroom_label}` }}</h2>
-        <p class="hero-copy">{{ featuredActivity?.instructions ?? "进入当前课程后，沿着活动步骤完成作答、作品上传、互评和复盘。" }}</p>
+        <h2>{{ heroTitle }}</h2>
+        <p class="hero-copy">{{ heroCopy }}</p>
+        <div class="tag-row hero-meta-row">
+          <span class="school-code-pill">{{ dashboard.classroom_label }}</span>
+          <span class="school-code-pill">总分 {{ dashboard.total_score }}</span>
+          <span class="school-code-pill">{{ completedCourses }}/{{ dashboard.course_directory.length }} 门已完成</span>
+        </div>
       </div>
-      <div class="hero-actions">
-        <el-button round @click="router.push('/student/settings')">学生设置</el-button>
+      <div class="student-hero-panel">
+        <div class="student-hero-panel__score">
+          <span>学习总分</span>
+          <strong>{{ dashboard.total_score }}</strong>
+          <small>{{ selectedCourseCard?.lesson_no ?? "当前学期" }} · {{ selectedCourseCard?.status ?? "持续更新" }}</small>
+        </div>
+        <div class="hero-actions">
+          <el-button round @click="openSelectedCourse">进入当前课程</el-button>
+          <el-button round @click="router.push('/student/settings')">学生设置</el-button>
+        </div>
       </div>
     </section>
 
     <el-tabs v-model="activeTab" class="workspace-tabs">
       <el-tab-pane label="我的概况" name="overview">
-        <div class="workspace-grid workspace-grid--student-overview">
-          <SectionCard eyebrow="整体表现" title="学生整体状况">
-            <template #icon>
-              <el-icon><Trophy /></el-icon>
-            </template>
-            <div class="student-summary-board">
-              <div class="analytics-strip">
-                <div class="analytics-tile analytics-tile--accent">
-                  <span>总分成绩</span>
-                  <strong>{{ dashboard.total_score }}</strong>
+        <div class="student-overview-shell">
+          <section class="student-cockpit">
+            <div class="student-cockpit__main">
+              <div class="student-cockpit__head">
+                <div>
+                  <p class="panel-kicker">学习驾驶舱</p>
+                  <h3>{{ dashboard.student_name }} · {{ dashboard.classroom_label }}</h3>
+                  <p class="panel-note">先看总分、课程状态和成长曲线，再进入课程目录继续推进具体活动。</p>
                 </div>
-                <div class="analytics-tile">
-                  <span>课程数量</span>
-                  <strong>{{ dashboard.course_directory.length }}</strong>
-                </div>
-                <div class="analytics-tile">
-                  <span>已完成课程</span>
-                  <strong>{{ completedCourses }}</strong>
-                </div>
+                <el-tag round effect="dark">{{ overviewStatusLabel }}</el-tag>
               </div>
-              <div class="student-progress-note">
-                <p class="panel-kicker">学习提示</p>
-                <p class="panel-note">
-                  先看总分、课程完成度和成长图表，再进入课程目录继续推进具体活动。课程智能体只会在课程内的侧边抽屉中出现，不占用主要学习空间。
-                </p>
+
+              <div class="student-kpi-grid">
+                <article
+                  v-for="(item, index) in dashboard.quick_stats"
+                  :key="item.title"
+                  class="student-kpi-card"
+                  :class="{ 'student-kpi-card--accent': index === 0 }"
+                >
+                  <span>{{ item.title }}</span>
+                  <strong>{{ item.value }}</strong>
+                  <p>{{ item.hint }}</p>
+                </article>
               </div>
             </div>
 
-            <div class="course-overview-grid">
+            <aside class="student-cockpit__side">
+              <div class="student-progress-note student-progress-note--student-refined">
+                <p class="panel-kicker">当前推荐课程</p>
+                <h4>{{ selectedCourseCard?.title ?? "等待课程同步" }}</h4>
+                <p class="panel-note">{{ selectedCourseSummary }}</p>
+                <div class="metric-inline metric-inline--strong">
+                  <span>{{ selectedCourseCard?.lesson_no ?? "--" }}</span>
+                  <span>最近成绩 {{ selectedCourseCard?.latest_score ?? "--" }}</span>
+                  <span>完成率 {{ selectedCourseCard?.completion_rate ?? 0 }}%</span>
+                </div>
+                <div class="tag-row">
+                  <el-tag v-if="selectedCourseCard?.next_task_title" round effect="plain">
+                    下一项：{{ selectedCourseCard.next_task_title }}
+                  </el-tag>
+                  <el-tag v-if="featuredActivity?.task_type_label" round effect="plain">
+                    当前活动：{{ featuredActivity.task_type_label }}
+                  </el-tag>
+                </div>
+                <el-button type="primary" round class="fill-button" @click="openSelectedCourse">
+                  进入当前课程任务
+                </el-button>
+              </div>
+            </aside>
+          </section>
+
+          <SectionCard eyebrow="课程目录" title="继续推进课程">
+            <template #icon>
+              <el-icon><Trophy /></el-icon>
+            </template>
+            <div class="course-overview-grid course-overview-grid--student">
               <button
                 v-for="course in dashboard.course_directory"
                 :key="course.id"
                 type="button"
-                class="course-list-card"
+                class="course-list-card student-course-card"
                 :class="{ 'course-list-card--active': selectedCourseId === course.id }"
                 @click="selectCourse(course.id)"
               >
                 <div class="course-list-card__head">
-                  <strong>{{ course.title }}</strong>
+                  <div>
+                    <p class="panel-kicker">{{ course.lesson_no }}</p>
+                    <strong>{{ course.title }}</strong>
+                  </div>
                   <el-tag size="small" effect="plain">{{ course.status }}</el-tag>
                 </div>
                 <p class="panel-note">{{ course.next_task_title ?? "等待下一项任务" }}</p>
@@ -71,28 +114,35 @@
             </div>
           </SectionCard>
 
-          <SectionCard eyebrow="图表分析" title="学习成长图表">
-            <template #icon>
-              <el-icon><DataAnalysis /></el-icon>
-            </template>
-            <div class="chart-grid">
-              <ChartPanelCard v-for="panel in dashboard.charts" :key="panel.key" :panel="panel" />
-            </div>
-          </SectionCard>
-
-          <SectionCard eyebrow="最近反馈" title="课程反馈回流">
-            <template #icon>
-              <el-icon><Collection /></el-icon>
-            </template>
-            <div class="info-list">
-              <div v-for="item in dashboard.recent_feedback" :key="item.title" class="info-list-item">
-                <div>
-                  <strong>{{ item.title }}</strong>
-                  <p class="panel-note">{{ item.content }}</p>
-                </div>
+          <div class="student-overview-grid">
+            <SectionCard eyebrow="图表分析" title="学习成长图表" class="student-overview-grid__charts">
+              <template #icon>
+                <el-icon><DataAnalysis /></el-icon>
+              </template>
+              <div class="chart-grid chart-grid--student">
+                <ChartPanelCard v-for="panel in dashboard.charts" :key="panel.key" :panel="panel" />
               </div>
-            </div>
-          </SectionCard>
+            </SectionCard>
+
+            <SectionCard eyebrow="最近反馈" title="课程反馈回流" class="student-overview-grid__feedback">
+              <template #icon>
+                <el-icon><Collection /></el-icon>
+              </template>
+              <div class="student-feedback-list">
+                <article
+                  v-for="(item, index) in dashboard.recent_feedback.slice(0, 4)"
+                  :key="`${item.title}-${index}`"
+                  class="student-feedback-item"
+                >
+                  <span class="student-feedback-item__index">{{ index + 1 }}</span>
+                  <div>
+                    <strong>{{ item.title }}</strong>
+                    <p class="panel-note">{{ item.content }}</p>
+                  </div>
+                </article>
+              </div>
+            </SectionCard>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -521,7 +571,7 @@ const session = useSessionStore();
 const dashboard = ref<StudentDashboardResponse | null>(null);
 const courseDetail = ref<StudentCourseDetailResponse | null>(null);
 const selectedCourseId = ref<number | null>(null);
-const activeTab = ref("courses");
+const activeTab = ref("overview");
 const courseTab = ref("activities");
 const assistantPinned = ref(false);
 const courseLoading = ref(false);
@@ -541,6 +591,59 @@ const reviewForms = reactive<Record<number, { score: number; comment: string; ta
 const completedCourses = computed(
   () => dashboard.value?.course_directory.filter((course) => course.completion_rate >= 100).length ?? 0
 );
+
+const selectedCourseCard = computed(() => {
+  if (!dashboard.value) {
+    return null;
+  }
+  return (
+    dashboard.value.course_directory.find((course) => course.id === selectedCourseId.value) ??
+    dashboard.value.course_directory[0] ??
+    null
+  );
+});
+
+const pendingCourses = computed(
+  () => dashboard.value?.course_directory.filter((course) => course.completion_rate < 100).length ?? 0
+);
+
+const heroTitle = computed(() => {
+  if (!dashboard.value) {
+    return "";
+  }
+  if (activeTab.value === "overview") {
+    return `${dashboard.value.student_name} · 学习总览`;
+  }
+  return courseDetail.value?.course.title ?? `${dashboard.value.student_name} · ${dashboard.value.classroom_label}`;
+});
+
+const heroCopy = computed(() => {
+  if (!dashboard.value) {
+    return "";
+  }
+  if (activeTab.value === "overview") {
+    return "先浏览整体表现、课程目录和成长图表，再进入当前课程按活动步骤推进作答、作品上传和互评复盘。";
+  }
+  return featuredActivity.value?.instructions ?? "进入当前课程后，沿着活动步骤完成作答、作品上传、互评和复盘。";
+});
+
+const overviewStatusLabel = computed(() => {
+  if (!dashboard.value) {
+    return "";
+  }
+  if (pendingCourses.value > 0) {
+    return `待推进 ${pendingCourses.value} 门`;
+  }
+  return "进度稳定";
+});
+
+const selectedCourseSummary = computed(() => {
+  const course = selectedCourseCard.value;
+  if (!course) {
+    return "课程数据同步后，会在这里推荐当前最值得优先推进的一门课程。";
+  }
+  return `${course.lesson_no} · ${course.subject} · ${course.next_task_title ?? "可直接进入课程目录继续学习"}`;
+});
 
 const featuredActivity = computed<ActivityTaskDescriptor | null>(() => {
   if (!courseDetail.value) {
@@ -658,6 +761,13 @@ function selectCourse(courseId: number) {
   selectedCourseId.value = courseId;
   activeTab.value = "courses";
   assistantPinned.value = false;
+}
+
+function openSelectedCourse() {
+  if (!selectedCourseCard.value) {
+    return;
+  }
+  selectCourse(selectedCourseCard.value.id);
 }
 
 function selectActivity(activityId: number) {
