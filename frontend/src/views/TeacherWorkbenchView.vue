@@ -8,18 +8,36 @@
   </div>
 
   <div v-else-if="dashboard" class="workspace-page workspace-page--immersive">
-    <section class="workspace-hero workspace-hero--teacher">
+    <section class="workspace-hero workspace-hero--teacher workspace-hero--teacher-refined">
       <div>
         <p class="panel-kicker">{{ dashboard.tenant_name }}</p>
-        <h2>{{ courseDetail?.course.title ?? `${dashboard.teacher_name} · ${dashboard.classroom_label}` }}</h2>
-        <p class="hero-copy">{{ featuredActivity?.instructions ?? "以当前课程为主舞台，集中处理活动任务、作品讲评和课堂分析。" }}</p>
+        <h2>{{ teacherHeroTitle }}</h2>
+        <p class="hero-copy">{{ teacherHeroCopy }}</p>
+        <div class="tag-row hero-meta-row">
+          <span class="school-code-pill">{{ selectedClassroom?.name ?? dashboard.classroom_label }}</span>
+          <span class="school-code-pill">{{ selectedCourseCard?.lesson_no ?? "当前课程" }}</span>
+          <span class="school-code-pill">{{ dashboard.pending_items.length }} 项待处理</span>
+        </div>
       </div>
-      <div class="workspace-hero__panel">
-        <div class="theme-switcher theme-switcher--wide">
-          <span class="theme-switcher__label">当前聚焦班级</span>
-          <strong>{{ selectedClassroom?.name ?? dashboard.classroom_label }}</strong>
+      <div class="teacher-hero-panel">
+        <div class="teacher-hero-panel__session">
+          <span>当前课堂</span>
+          <strong>{{ dashboard.active_session?.course_title ?? "尚未开启课堂" }}</strong>
+          <small>
+            {{ selectedClassroom?.name ?? dashboard.classroom_label }} ·
+            {{ displayModeLabel(dashboard.active_session?.view_mode ?? dashboard.lab_snapshot.view_mode) }}
+          </small>
+          <div class="tag-row">
+            <el-tag round :type="dashboard.active_session ? 'success' : 'info'">
+              {{ dashboard.active_session?.status ?? "idle" }}
+            </el-tag>
+            <el-tag round effect="plain">
+              签到 {{ dashboard.lab_snapshot.signed_in_count }}/{{ dashboard.lab_snapshot.student_count }}
+            </el-tag>
+          </div>
         </div>
         <div class="hero-actions">
+          <el-button round @click="openCurrentCourse">进入当前课程</el-button>
           <el-button round @click="router.push('/teacher/settings')">教师设置</el-button>
           <el-button round @click="openShowcase" :disabled="!courseDetail">作品大屏</el-button>
           <el-button type="primary" round @click="createCourseDialog = true">生成课程</el-button>
@@ -29,7 +47,51 @@
 
     <el-tabs v-model="activeTab" class="workspace-tabs">
       <el-tab-pane label="课堂总览" name="overview">
-        <div class="workspace-grid workspace-grid--teacher-overview">
+        <div class="teacher-overview-shell">
+          <section class="teacher-cockpit">
+            <div class="teacher-cockpit__main">
+              <div class="teacher-cockpit__head">
+                <div>
+                  <p class="panel-kicker">课堂控制台</p>
+                  <h3>{{ dashboard.teacher_name }} · {{ selectedClassroom?.name ?? dashboard.classroom_label }}</h3>
+                  <p class="panel-note">先看当前班级、待处理事项和课程数据，再进入课程目录处理活动、讲评与 AI 发布。</p>
+                </div>
+                <el-tag round effect="dark">{{ dashboard.active_session ? "上课中" : "待开课" }}</el-tag>
+              </div>
+
+              <div class="teacher-kpi-grid">
+                <article
+                  v-for="(item, index) in dashboard.quick_stats"
+                  :key="item.title"
+                  class="teacher-kpi-card"
+                  :class="{ 'teacher-kpi-card--accent': index === 0 }"
+                >
+                  <span>{{ item.title }}</span>
+                  <strong>{{ item.value }}</strong>
+                  <p>{{ item.hint }}</p>
+                </article>
+              </div>
+            </div>
+
+            <aside class="teacher-cockpit__side">
+              <div class="teacher-brief-card">
+                <p class="panel-kicker">当前班级与课程</p>
+                <h4>{{ selectedClassroom?.name ?? dashboard.classroom_label }} · {{ selectedCourseCard?.title ?? "等待课程同步" }}</h4>
+                <p class="panel-note">{{ teacherOverviewSummary }}</p>
+                <div class="metric-inline metric-inline--strong">
+                  <span>课堂视图 {{ displayModeLabel(dashboard.active_session?.view_mode ?? dashboard.lab_snapshot.view_mode) }}</span>
+                  <span>IP 锁定 {{ dashboard.lab_snapshot.ip_lock_enabled ? "已启用" : "未启用" }}</span>
+                  <span>待点评 {{ dashboard.lab_snapshot.pending_review_count }}</span>
+                </div>
+                <div class="hero-actions">
+                  <el-button round @click="openCurrentCourse">进入当前课程</el-button>
+                  <el-button type="primary" round @click="createCourseDialog = true">生成课程</el-button>
+                </div>
+              </div>
+            </aside>
+          </section>
+
+          <div class="workspace-grid workspace-grid--teacher-overview">
           <SectionCard eyebrow="开课控制" title="按班级开启上课">
             <template #icon>
               <el-icon><School /></el-icon>
@@ -188,17 +250,20 @@
             <template #icon>
               <el-icon><Reading /></el-icon>
             </template>
-            <div class="course-list">
+            <div class="course-list course-list--teacher-overview">
               <button
                 v-for="course in dashboard.course_directory"
                 :key="course.id"
                 type="button"
-                class="course-list-card"
+                class="course-list-card teacher-course-card"
                 :class="{ 'course-list-card--active': selectedCourseId === course.id }"
                 @click="handleSelectCourse(course.id)"
               >
                 <div class="course-list-card__head">
-                  <strong>{{ course.title }}</strong>
+                  <div>
+                    <p class="panel-kicker">{{ course.lesson_no }}</p>
+                    <strong>{{ course.title }}</strong>
+                  </div>
                   <el-tag size="small" effect="plain">{{ course.lesson_no }}</el-tag>
                 </div>
                 <p class="panel-note">{{ course.subject }} · {{ course.term }}</p>
@@ -211,11 +276,11 @@
             </div>
           </SectionCard>
 
-          <SectionCard eyebrow="图表分析" title="教师首页图表">
+            <SectionCard eyebrow="图表分析" title="教师首页图表">
             <template #icon>
               <el-icon><DataAnalysis /></el-icon>
             </template>
-            <div class="chart-grid">
+            <div class="chart-grid chart-grid--teacher">
               <ChartPanelCard v-for="panel in dashboard.charts" :key="panel.key" :panel="panel" />
             </div>
           </SectionCard>
@@ -234,6 +299,7 @@
               </div>
             </div>
           </SectionCard>
+          </div>
         </div>
       </el-tab-pane>
 
@@ -873,7 +939,7 @@ const courseDetail = ref<TeacherCourseDetailResponse | null>(null);
 const selectedCourseId = ref<number | null>(null);
 const selectedClassroomId = ref<number | null>(null);
 const selectedActivityId = ref<number | null>(null);
-const activeTab = ref("courses");
+const activeTab = ref("overview");
 const courseTab = ref("activities");
 const assistantPinned = ref(false);
 const courseLoading = ref(false);
@@ -924,6 +990,48 @@ const createCourseForm = reactive({
 
 const selectedClassroom = computed(() => {
   return dashboard.value?.classroom_options.find((item) => item.id === selectedClassroomId.value) ?? null;
+});
+
+const selectedCourseCard = computed(() => {
+  if (!dashboard.value) {
+    return null;
+  }
+  const selected = dashboard.value.course_directory.find((course) => course.id === selectedCourseId.value);
+  if (selected) {
+    return selected;
+  }
+  if (dashboard.value.active_session?.course_id != null) {
+    return dashboard.value.course_directory.find((course) => course.id === dashboard.value?.active_session?.course_id) ?? null;
+  }
+  return dashboard.value.course_directory[0] ?? null;
+});
+
+const teacherHeroTitle = computed(() => {
+  if (!dashboard.value) {
+    return "";
+  }
+  if (activeTab.value === "overview") {
+    return `${dashboard.value.teacher_name} · 课堂总览`;
+  }
+  return courseDetail.value?.course.title ?? `${dashboard.value.teacher_name} · ${dashboard.value.classroom_label}`;
+});
+
+const teacherHeroCopy = computed(() => {
+  if (!dashboard.value) {
+    return "";
+  }
+  if (activeTab.value === "overview") {
+    return "登录后先查看当前班级机房状态、课程目录、待处理作品和图表，再进入具体课程处理活动任务与讲评。";
+  }
+  return featuredActivity.value?.instructions ?? "以当前课程为主舞台，集中处理活动任务、作品讲评和课堂分析。";
+});
+
+const teacherOverviewSummary = computed(() => {
+  if (!dashboard.value) {
+    return "";
+  }
+  const course = selectedCourseCard.value;
+  return `${course?.lesson_no ?? "当前课程"} · ${course?.title ?? "等待课程同步"} · 当前有 ${dashboard.value.pending_items.length} 项待处理事项。`;
 });
 
 const featuredActivity = computed<ActivityTaskDescriptor | null>(() => {
@@ -999,7 +1107,7 @@ async function loginDemo() {
 }
 
 async function initializeTeacherWorkbench() {
-  activeTab.value = parseWorkbenchTab(route.query.tab) ?? "courses";
+  activeTab.value = parseWorkbenchTab(route.query.tab) ?? "overview";
   await loadDashboard(parsePositiveInt(route.query.classroomId), parsePositiveInt(route.query.courseId));
 }
 
@@ -1076,6 +1184,13 @@ async function handleSelectCourse(courseId: number) {
   assistantPinned.value = false;
   await syncWorkbenchRoute();
   await loadCourseDetail(courseId);
+}
+
+async function openCurrentCourse() {
+  if (!selectedCourseCard.value) {
+    return;
+  }
+  await handleSelectCourse(selectedCourseCard.value.id);
 }
 
 function handleSelectActivity(activityId: number) {
@@ -1324,7 +1439,7 @@ async function syncWorkbenchRoute() {
   if (selectedCourseId.value) {
     query.courseId = String(selectedCourseId.value);
   }
-  if (activeTab.value !== "courses") {
+  if (activeTab.value !== "overview") {
     query.tab = activeTab.value;
   }
 
@@ -1351,7 +1466,7 @@ watch(
       return;
     }
 
-    const nextTab = parseWorkbenchTab(tabValue) ?? "courses";
+    const nextTab = parseWorkbenchTab(tabValue) ?? "overview";
     if (nextTab !== activeTab.value) {
       activeTab.value = nextTab;
     }
