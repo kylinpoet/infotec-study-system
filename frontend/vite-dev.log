@@ -24,3 +24,5 @@
 [2m08:20:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme.css[22m
 [2m08:21:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33melement-plus/es/components/input-number/index, element-plus/es/components/input-number/style/css[32m[39m
 [2m08:21:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ optimized dependencies changed. reloading[39m
+[2m08:39:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/views/PortalAdminView.vue[22m
+[2m08:40:00[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme.css[22m
