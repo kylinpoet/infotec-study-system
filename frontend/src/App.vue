@@ -1,6 +1,6 @@
 <template>
   <el-container class="app-shell">
-    <el-header class="app-header">
+    <el-header class="app-header" :class="{ 'app-header--immersive': isWorkspaceRoute }">
       <div class="app-brand">
         <p class="panel-kicker">Infotec Platform</p>
         <h1>义务教育阶段信息科技课程综合平台</h1>
@@ -61,12 +61,16 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { RouterLink, RouterView } from "vue-router";
+import { useRoute } from "vue-router";
 
 import ZodiacAgentAvatar from "./components/ZodiacAgentAvatar.vue";
 import { useThemePreset } from "./composables/useThemePreset";
 import { useSessionStore } from "./stores/session";
 
+const route = useRoute();
 const session = useSessionStore();
 const { currentThemeKey, themePresets, applyThemePreset } = useThemePreset();
+const isWorkspaceRoute = computed(() => ["/teacher", "/student", "/admin"].some((path) => route.path.startsWith(path)));
 </script>

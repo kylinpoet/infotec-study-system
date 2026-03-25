@@ -7,8 +7,8 @@
     </el-card>
   </div>
 
-  <div v-else-if="dashboard" class="workspace-page">
-    <section class="workspace-hero workspace-hero--teacher">
+  <div v-else-if="dashboard" class="workspace-page workspace-page--immersive portal-admin-page">
+    <section class="workspace-hero workspace-hero--teacher workspace-hero--admin">
       <div>
         <p class="panel-kicker">Portal Admin</p>
         <h2>{{ dashboard.admin_name }} · 门户管理后台</h2>

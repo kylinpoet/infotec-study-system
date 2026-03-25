@@ -125,6 +125,64 @@ textarea {
   font-size: 13px;
 }
 
+.app-header--immersive {
+  gap: 16px;
+  margin-top: 12px;
+  padding: 14px 18px;
+  border-radius: 24px;
+}
+
+.app-header--immersive .app-brand {
+  min-width: 0;
+  max-width: 360px;
+}
+
+.app-header--immersive .app-brand h1 {
+  font-size: 1.1rem;
+  line-height: 1.15;
+}
+
+.app-header--immersive .app-brand__note {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.app-header--immersive .app-nav {
+  gap: 6px;
+  padding: 4px;
+}
+
+.app-header--immersive .app-nav__link {
+  padding: 9px 14px;
+  font-size: 14px;
+}
+
+.app-header--immersive .theme-switcher {
+  padding: 6px 10px;
+}
+
+.app-header--immersive .theme-switcher__select {
+  width: 178px;
+}
+
+.app-header--immersive .app-user {
+  gap: 10px;
+}
+
+.app-header--immersive .zodiac-avatar--compact .zodiac-avatar__svg {
+  width: 56px;
+  height: 56px;
+}
+
+.app-header--immersive .app-user__meta strong {
+  font-size: 14px;
+}
+
+.app-header--immersive .app-user__meta span {
+  font-size: 12px;
+}
+
 .app-main {
   padding: 22px 18px 28px;
   max-width: 1560px;
@@ -519,6 +577,12 @@ textarea {
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--theme-secondary) 16%, transparent), transparent 30%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 250, 248, 0.96));
+}
+
+.workspace-hero--admin {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-accent) 10%, transparent), transparent 28%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(245, 248, 255, 0.95));
 }
 
 .workspace-tabs .el-tabs__header {
@@ -1835,6 +1899,97 @@ textarea {
   padding: 12px 14px;
 }
 
+.course-stage-panel,
+.course-stage-kpis,
+.course-tab-grid,
+.overview-grid--teacher,
+.portal-admin-page .detail-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.course-stage-panel {
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+  align-items: end;
+  margin-bottom: 18px;
+  padding: 22px 24px;
+  border: 1px solid rgba(215, 224, 236, 0.86);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--theme-accent) 12%, transparent), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(246, 250, 255, 0.96));
+}
+
+.course-stage-panel__copy {
+  display: grid;
+  gap: 10px;
+}
+
+.course-stage-panel__copy h3 {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.course-stage-panel__meta {
+  display: grid;
+  gap: 12px;
+  justify-items: end;
+}
+
+.course-stage-kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.course-tab-grid {
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  align-items: start;
+}
+
+.course-tab-grid--analytics {
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+}
+
+.overview-grid--teacher {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+
+.overview-grid--teacher > :first-child {
+  grid-column: 1 / -1;
+}
+
+.portal-admin-page .stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.portal-admin-page .stat-card {
+  min-height: 0;
+}
+
+.portal-admin-page .stat-card__value {
+  font-size: 1.8rem;
+}
+
+.portal-admin-page .portal-admin-layout {
+  grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
+  align-items: start;
+}
+
+.portal-admin-page .portal-preview {
+  position: sticky;
+  top: 18px;
+  min-height: 460px;
+}
+
+.portal-admin-page .workflow-panel {
+  padding: 18px;
+}
+
+.portal-admin-page .workflow-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 1280px) {
   .stats-grid,
   .school-feature-grid,
@@ -1860,6 +2015,13 @@ textarea {
   .showcase-hero,
   .showcase-stage,
   .showcase-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .course-stage-panel,
+  .course-tab-grid,
+  .course-tab-grid--analytics,
+  .overview-grid--teacher {
     grid-template-columns: 1fr;
   }
 }
@@ -1924,6 +2086,24 @@ textarea {
 
   .directory-sidebar {
     position: static;
+  }
+
+  .app-header--immersive {
+    padding: 14px;
+  }
+
+  .app-header--immersive .app-brand {
+    max-width: none;
+  }
+
+  .app-header--immersive .app-brand__note {
+    display: none;
+  }
+
+  .portal-admin-page .stats-grid,
+  .course-stage-kpis,
+  .portal-admin-page .workflow-grid {
+    grid-template-columns: 1fr;
   }
 
   .assistant-float {

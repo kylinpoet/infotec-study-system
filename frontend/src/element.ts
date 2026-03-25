@@ -10,6 +10,7 @@ import { ElEmpty } from "element-plus/es/components/empty/index";
 import { ElForm, ElFormItem } from "element-plus/es/components/form/index";
 import { ElIcon } from "element-plus/es/components/icon/index";
 import { ElInput } from "element-plus/es/components/input/index";
+import { ElInputNumber } from "element-plus/es/components/input-number/index";
 import { ElLoadingDirective } from "element-plus/es/components/loading/index";
 import { ElOption, ElSelect } from "element-plus/es/components/select/index";
 import { ElRadio, ElRadioButton, ElRadioGroup } from "element-plus/es/components/radio/index";
@@ -37,6 +38,7 @@ import "element-plus/es/components/form/style/css";
 import "element-plus/es/components/form-item/style/css";
 import "element-plus/es/components/icon/style/css";
 import "element-plus/es/components/input/style/css";
+import "element-plus/es/components/input-number/style/css";
 import "element-plus/es/components/loading/style/css";
 import "element-plus/es/components/select/style/css";
 import "element-plus/es/components/option/style/css";
@@ -71,6 +73,7 @@ const components = [
   ElHeader,
   ElIcon,
   ElInput,
+  ElInputNumber,
   ElMain,
   ElOption,
   ElRadio,
