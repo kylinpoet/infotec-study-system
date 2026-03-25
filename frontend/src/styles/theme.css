@@ -1642,22 +1642,23 @@ textarea {
 }
 
 .workspace-page--immersive .workspace-hero {
-  padding: 28px 30px;
+  padding: 22px 24px;
   min-height: 0;
-  border-radius: 34px;
+  border-radius: 30px;
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--theme-primary) 16%, transparent), transparent 28%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(244, 249, 255, 0.94));
 }
 
 .workspace-page--immersive .hero-copy {
-  max-width: 760px;
-  font-size: 15px;
+  max-width: 700px;
+  font-size: 14px;
+  line-height: 1.65;
 }
 
 .directory-layout--immersive {
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 22px;
+  grid-template-columns: 228px minmax(0, 1fr);
+  gap: 18px;
 }
 
 .directory-layout--immersive .directory-sidebar {
@@ -1666,9 +1667,9 @@ textarea {
 }
 
 .directory-layout--immersive .directory-content {
-  padding: 20px;
+  padding: 16px;
   border: 1px solid rgba(215, 224, 236, 0.84);
-  border-radius: 30px;
+  border-radius: 26px;
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--theme-secondary) 10%, transparent), transparent 26%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.94));
@@ -1676,18 +1677,19 @@ textarea {
 }
 
 .workspace-page--immersive .directory-content__head {
-  padding: 2px 2px 6px;
+  padding: 2px 2px 2px;
 }
 
 .workspace-page--immersive .course-list-card,
 .workspace-page--immersive .activity-outline-card {
-  border-radius: 22px;
+  border-radius: 20px;
+  padding: 14px 15px;
 }
 
 .workspace-page--immersive .activity-focus-card {
   margin-bottom: 0;
-  padding: 22px;
-  border-radius: 26px;
+  padding: 18px;
+  border-radius: 22px;
 }
 
 .workspace-page--immersive .workflow-panel,
@@ -1697,7 +1699,44 @@ textarea {
 }
 
 .workspace-page--immersive .section-card .el-card__body {
-  padding: 22px;
+  padding: 18px;
+}
+
+.workspace-page--immersive .section-card .el-card__header {
+  padding: 18px 20px 12px;
+}
+
+.workspace-page--immersive .workspace-hero h2 {
+  font-size: clamp(2rem, 3.8vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+.workspace-page--immersive .workspace-tabs .el-tabs__header {
+  margin-bottom: 10px;
+}
+
+.workspace-page--immersive .workspace-tabs .el-tabs__nav {
+  padding: 4px;
+}
+
+.workspace-page--immersive .workspace-tabs .el-tabs__item {
+  height: 38px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.workspace-page--immersive .directory-sidebar .panel-kicker {
+  margin-bottom: 4px;
+}
+
+.workspace-page--immersive .directory-sidebar h3 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.workspace-page--immersive .metric-inline {
+  margin-top: 6px;
+  font-size: 12px;
 }
 
 .activity-pill-row {
@@ -1976,18 +2015,32 @@ textarea {
   align-items: start;
 }
 
+.portal-admin-side {
+  display: grid;
+  gap: 18px;
+  align-self: start;
+}
+
 .portal-admin-page .portal-preview {
   position: sticky;
   top: 18px;
-  min-height: 460px;
+  min-height: 360px;
 }
 
 .portal-admin-page .workflow-panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .portal-admin-page .workflow-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.portal-admin-page .section-card .el-card__header {
+  padding: 18px 20px 12px;
+}
+
+.portal-admin-page .section-card .el-card__body {
+  padding: 18px;
 }
 
 @media (max-width: 1280px) {

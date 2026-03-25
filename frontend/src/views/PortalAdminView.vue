@@ -49,87 +49,6 @@
           </el-form>
         </SectionCard>
 
-        <SectionCard eyebrow="大模型配置" title="AI 接口与模型参数">
-          <template #icon><el-icon><Setting /></el-icon></template>
-          <div class="workflow-panel workflow-panel--aside">
-            <div class="workflow-panel__head">
-              <div>
-                <p class="panel-kicker">模型连接</p>
-                <h4>{{ llmForm.model_name || "未配置模型" }}</h4>
-              </div>
-              <el-button type="primary" :loading="llmSaving" @click="handleSaveLlmConfig">保存模型配置</el-button>
-            </div>
-
-            <el-form label-position="top">
-              <el-form-item label="启用大模型">
-                <el-switch v-model="llmForm.is_enabled" active-text="启用" inactive-text="停用" />
-              </el-form-item>
-
-              <div class="workflow-grid">
-                <div class="workflow-panel">
-                  <el-form-item label="接口标识">
-                    <el-input
-                      v-model="llmForm.provider_name"
-                      placeholder="例如：OpenAI Compatible / DashScope / DeepSeek"
-                    />
-                  </el-form-item>
-                  <el-form-item label="Base URL">
-                    <el-input
-                      v-model="llmForm.base_url"
-                      placeholder="例如：https://api.openai.com/v1"
-                    />
-                  </el-form-item>
-                  <el-form-item label="API Key">
-                    <el-input
-                      v-model="llmForm.api_key"
-                      show-password
-                      placeholder="留空则保留当前密钥"
-                    />
-                  </el-form-item>
-                  <p class="panel-note">
-                    当前状态：{{ llmForm.has_api_key ? `已保存 ${llmForm.api_key_masked}` : "尚未保存 API Key" }}
-                  </p>
-                  <el-checkbox v-model="llmForm.clear_api_key">清空已保存的 API Key</el-checkbox>
-                </div>
-
-                <div class="workflow-panel">
-                  <el-form-item label="模型名称">
-                    <el-select
-                      v-model="llmForm.model_name"
-                      class="fill-button"
-                      filterable
-                      allow-create
-                      default-first-option
-                    >
-                      <el-option
-                        v-for="item in llmForm.model_options"
-                        :key="item.value"
-                        :label="item.provider_hint ? `${item.label} · ${item.provider_hint}` : item.label"
-                        :value="item.value"
-                      />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item label="Temperature">
-                    <el-slider v-model="llmForm.temperature" :min="0" :max="2" :step="0.1" show-input />
-                  </el-form-item>
-                  <el-form-item label="Max Tokens">
-                    <el-input-number v-model="llmForm.max_tokens" :min="256" :max="32768" :step="256" class="fill-button" />
-                  </el-form-item>
-                </div>
-              </div>
-
-              <el-form-item label="补充说明">
-                <el-input
-                  v-model="llmForm.notes"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="例如：课程智能体允许联网，作业生成优先使用该模型。"
-                />
-              </el-form-item>
-            </el-form>
-          </div>
-        </SectionCard>
-
         <SectionCard eyebrow="学校资料" title="多校门户编辑">
           <template #icon><el-icon><School /></el-icon></template>
           <div class="course-activity-layout">
@@ -291,22 +210,98 @@
         </SectionCard>
       </div>
 
-      <SectionCard eyebrow="即时预览" title="门户预览">
-        <template #icon><el-icon><View /></el-icon></template>
-        <div class="portal-preview" :style="previewVars">
-          <p class="panel-kicker">Preview</p>
-          <h3>{{ heroForm.hero_title }}</h3>
-          <p class="panel-note">{{ heroForm.hero_subtitle }}</p>
-          <div class="portal-preview__school" v-if="selectedSchool">
-            <h4>{{ schoolForm.name }}</h4>
-            <p>{{ schoolForm.slogan }}</p>
-            <div class="tag-row">
-              <el-tag round>{{ schoolForm.district }}</el-tag>
-              <el-tag round effect="plain">{{ schoolForm.grade_scope }}</el-tag>
+      <div class="portal-admin-side">
+        <SectionCard eyebrow="大模型配置" title="AI 接口与模型参数">
+          <template #icon><el-icon><Setting /></el-icon></template>
+          <div class="workflow-panel workflow-panel--aside">
+            <div class="workflow-panel__head">
+              <div>
+                <p class="panel-kicker">模型连接</p>
+                <h4>{{ llmForm.model_name || "未配置模型" }}</h4>
+              </div>
+              <el-button type="primary" :loading="llmSaving" @click="handleSaveLlmConfig">保存模型配置</el-button>
+            </div>
+
+            <el-form label-position="top">
+              <el-form-item label="启用大模型">
+                <el-switch v-model="llmForm.is_enabled" active-text="启用" inactive-text="停用" />
+              </el-form-item>
+
+              <el-form-item label="接口标识">
+                <el-input
+                  v-model="llmForm.provider_name"
+                  placeholder="例如：OpenAI Compatible / DashScope / DeepSeek"
+                />
+              </el-form-item>
+              <el-form-item label="Base URL">
+                <el-input
+                  v-model="llmForm.base_url"
+                  placeholder="例如：https://api.openai.com/v1"
+                />
+              </el-form-item>
+              <el-form-item label="API Key">
+                <el-input
+                  v-model="llmForm.api_key"
+                  show-password
+                  placeholder="留空则保留当前密钥"
+                />
+              </el-form-item>
+              <p class="panel-note">
+                当前状态：{{ llmForm.has_api_key ? `已保存 ${llmForm.api_key_masked}` : "尚未保存 API Key" }}
+              </p>
+              <el-checkbox v-model="llmForm.clear_api_key">清空已保存的 API Key</el-checkbox>
+
+              <el-form-item label="模型名称">
+                <el-select
+                  v-model="llmForm.model_name"
+                  class="fill-button"
+                  filterable
+                  allow-create
+                  default-first-option
+                >
+                  <el-option
+                    v-for="item in llmForm.model_options"
+                    :key="item.value"
+                    :label="item.provider_hint ? `${item.label} · ${item.provider_hint}` : item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="Temperature">
+                <el-slider v-model="llmForm.temperature" :min="0" :max="2" :step="0.1" show-input />
+              </el-form-item>
+              <el-form-item label="Max Tokens">
+                <el-input-number v-model="llmForm.max_tokens" :min="256" :max="32768" :step="256" class="fill-button" />
+              </el-form-item>
+              <el-form-item label="补充说明">
+                <el-input
+                  v-model="llmForm.notes"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="例如：课程智能体允许联网，作业生成优先使用该模型。"
+                />
+              </el-form-item>
+            </el-form>
+          </div>
+        </SectionCard>
+
+        <SectionCard eyebrow="即时预览" title="门户预览">
+          <template #icon><el-icon><View /></el-icon></template>
+          <div class="portal-preview" :style="previewVars">
+            <p class="panel-kicker">Preview</p>
+            <h3>{{ heroForm.hero_title }}</h3>
+            <p class="panel-note">{{ heroForm.hero_subtitle }}</p>
+            <div class="portal-preview__school" v-if="selectedSchool">
+              <h4>{{ schoolForm.name }}</h4>
+              <p>{{ schoolForm.slogan }}</p>
+              <div class="tag-row">
+                <el-tag round>{{ schoolForm.district }}</el-tag>
+                <el-tag round effect="plain">{{ schoolForm.grade_scope }}</el-tag>
+              </div>
             </div>
           </div>
-        </div>
-      </SectionCard>
+        </SectionCard>
+      </div>
     </div>
   </div>
 </template>
