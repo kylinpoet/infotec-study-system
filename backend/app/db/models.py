@@ -45,10 +45,10 @@ class LLMProviderConfig(TimestampMixin, Base):
     __tablename__ = "llm_provider_configs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    scope: Mapped[str] = mapped_column(String(30), default="platform")
+    scope: Mapped[str] = mapped_column(String(30), default="platform", unique=True)
     provider_name: Mapped[str] = mapped_column(String(80), nullable=False, default="OpenAI Compatible")
     base_url: Mapped[str] = mapped_column(String(255), nullable=False, default="https://api.openai.com/v1")
-    api_key: Mapped[str | None] = mapped_column(String(255))
+    api_key: Mapped[str | None] = mapped_column(Text)
     model_name: Mapped[str] = mapped_column(String(120), nullable=False, default="gpt-4.1-mini")
     temperature: Mapped[float] = mapped_column(Float, default=0.4)
     max_tokens: Mapped[int] = mapped_column(Integer, default=4096)

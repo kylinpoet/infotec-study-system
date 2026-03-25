@@ -525,15 +525,43 @@ async function handleSaveLlmConfig() {
   if (!session.user) {
     return;
   }
+  const providerName = llmForm.provider_name.trim();
+  const baseUrl = llmForm.base_url.trim();
+  const modelName = llmForm.model_name.trim();
+  const typedApiKey = llmForm.api_key.trim();
+  const hasUsableApiKey = Boolean(typedApiKey || (llmForm.has_api_key && !llmForm.clear_api_key));
+
+  if (!providerName || !baseUrl || !modelName) {
+    ElMessage.warning("请先完整填写接口标识、Base URL 和模型名称。");
+    return;
+  }
+
+  try {
+    new URL(baseUrl);
+  } catch {
+    ElMessage.warning("请输入合法的 Base URL。");
+    return;
+  }
+
+  if (llmForm.is_enabled && !hasUsableApiKey) {
+    ElMessage.warning("启用大模型前请先填写 API Key。");
+    return;
+  }
+
+  if (llmForm.is_enabled && llmForm.clear_api_key) {
+    ElMessage.warning("启用大模型时不能同时清空 API Key。");
+    return;
+  }
+
   llmSaving.value = true;
   try {
     await api.updateLlmConfig({
       admin_user_id: session.user.id,
-      provider_name: llmForm.provider_name.trim(),
-      base_url: llmForm.base_url.trim(),
-      api_key: llmForm.api_key.trim() || null,
+      provider_name: providerName,
+      base_url: baseUrl,
+      api_key: typedApiKey || null,
       clear_api_key: llmForm.clear_api_key,
-      model_name: llmForm.model_name.trim(),
+      model_name: modelName,
       temperature: llmForm.temperature,
       max_tokens: llmForm.max_tokens,
       is_enabled: llmForm.is_enabled,

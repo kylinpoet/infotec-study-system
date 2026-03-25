@@ -1,6 +1,8 @@
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.security import decrypt_secret, encrypt_secret
 from app.db.models import LLMProviderConfig
 from app.schemas.contracts import LLMConfigResponse, LLMModelOption
 
@@ -24,12 +26,7 @@ COMMON_MODEL_OPTIONS = [
 
 
 def get_or_create_llm_config(db: Session) -> LLMProviderConfig:
-    config = db.scalar(
-        select(LLMProviderConfig)
-        .where(LLMProviderConfig.scope == "platform")
-        .order_by(LLMProviderConfig.id.asc())
-        .limit(1)
-    )
+    config = get_platform_llm_config(db)
     if not config:
         config = LLMProviderConfig(
             scope="platform",
@@ -42,8 +39,23 @@ def get_or_create_llm_config(db: Session) -> LLMProviderConfig:
             notes="支持 OpenAI 兼容接口，模型列表可自定义扩展。",
         )
         db.add(config)
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            db.rollback()
+            config = get_platform_llm_config(db)
+            if not config:
+                raise
     return config
+
+
+def get_platform_llm_config(db: Session) -> LLMProviderConfig | None:
+    return db.scalar(
+        select(LLMProviderConfig)
+        .where(LLMProviderConfig.scope == "platform")
+        .order_by(LLMProviderConfig.updated_at.desc(), LLMProviderConfig.id.desc())
+        .limit(1)
+    )
 
 
 def mask_api_key(api_key: str | None) -> str | None:
@@ -55,11 +67,12 @@ def mask_api_key(api_key: str | None) -> str | None:
 
 
 def build_llm_config_response(config: LLMProviderConfig) -> LLMConfigResponse:
+    resolved_api_key = decrypt_secret(config.api_key)
     return LLMConfigResponse(
         provider_name=config.provider_name,
         base_url=config.base_url,
-        api_key_masked=mask_api_key(config.api_key),
-        has_api_key=bool(config.api_key),
+        api_key_masked=mask_api_key(resolved_api_key),
+        has_api_key=bool(resolved_api_key),
         model_name=config.model_name,
         model_options=COMMON_MODEL_OPTIONS,
         temperature=config.temperature,
@@ -67,3 +80,11 @@ def build_llm_config_response(config: LLMProviderConfig) -> LLMConfigResponse:
         is_enabled=config.is_enabled,
         notes=config.notes,
     )
+
+
+def set_encrypted_api_key(config: LLMProviderConfig, api_key: str | None):
+    config.api_key = encrypt_secret(api_key) if api_key else None
+
+
+def get_decrypted_api_key(config: LLMProviderConfig) -> str | None:
+    return decrypt_secret(config.api_key)

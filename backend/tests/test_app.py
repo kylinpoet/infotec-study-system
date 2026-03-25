@@ -298,6 +298,8 @@ def test_portal_admin_can_manage_portal_content():
     from fastapi.testclient import TestClient
 
     from app.main import app
+    from app.db.models import LLMProviderConfig
+    from app.db.session import session_scope
 
     with TestClient(app) as client:
         login = client.post(
@@ -365,6 +367,11 @@ def test_portal_admin_can_manage_portal_content():
         assert llm_payload["has_api_key"] is True
         assert llm_payload["api_key_masked"]
 
+        with session_scope() as session:
+            stored = session.query(LLMProviderConfig).filter(LLMProviderConfig.scope == "platform").one()
+            assert stored.api_key != "sk-test-admin-12345678"
+            assert stored.api_key.startswith("enc:")
+
         announcement_create = client.post(
             "/api/v1/admin/portal/announcements",
             json={
@@ -378,3 +385,51 @@ def test_portal_admin_can_manage_portal_content():
         )
         assert announcement_create.status_code == 200
         assert announcement_create.json()["title"] == "门户后台已上线"
+
+
+def test_llm_config_rejects_enabled_state_without_api_key():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    with TestClient(app) as client:
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"username": "portaladmin", "password": "333333", "school_code": "xingzhi-school"},
+        )
+        assert login.status_code == 200
+        admin = login.json()["user"]
+
+        clear_key = client.put(
+            "/api/v1/admin/llm/config",
+            json={
+                "admin_user_id": admin["id"],
+                "provider_name": "OpenAI Compatible",
+                "base_url": "https://api.openai.com/v1",
+                "api_key": None,
+                "clear_api_key": True,
+                "model_name": "gpt-4.1-mini",
+                "temperature": 0.4,
+                "max_tokens": 4096,
+                "is_enabled": False,
+                "notes": "clear key first",
+            },
+        )
+        assert clear_key.status_code == 200
+
+        invalid_enable = client.put(
+            "/api/v1/admin/llm/config",
+            json={
+                "admin_user_id": admin["id"],
+                "provider_name": "OpenAI Compatible",
+                "base_url": "https://api.openai.com/v1",
+                "api_key": None,
+                "clear_api_key": False,
+                "model_name": "gpt-4.1-mini",
+                "temperature": 0.4,
+                "max_tokens": 4096,
+                "is_enabled": True,
+                "notes": "should fail",
+            },
+        )
+        assert invalid_enable.status_code == 422

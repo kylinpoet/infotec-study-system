@@ -19,7 +19,12 @@ from app.services.portal_content import (
     build_portal_admin_school_items,
     get_or_create_portal_config,
 )
-from app.services.llm_config import build_llm_config_response, get_or_create_llm_config
+from app.services.llm_config import (
+    build_llm_config_response,
+    get_decrypted_api_key,
+    get_or_create_llm_config,
+    set_encrypted_api_key,
+)
 
 router = APIRouter()
 
@@ -180,10 +185,15 @@ def update_portal_announcement(
 def update_llm_config(payload: LLMConfigUpdateRequest, db: Session = Depends(get_db)):
     _get_admin(payload.admin_user_id, db)
     config = get_or_create_llm_config(db)
+    existing_api_key = get_decrypted_api_key(config)
+    next_api_key = None if payload.clear_api_key else (payload.api_key.strip() if payload.api_key and payload.api_key.strip() else existing_api_key)
 
-    config.provider_name = payload.provider_name.strip()
-    config.base_url = payload.base_url.strip()
-    config.model_name = payload.model_name.strip()
+    if payload.is_enabled and not next_api_key:
+        raise HTTPException(status_code=422, detail="启用大模型前请先配置 API Key。")
+
+    config.provider_name = payload.provider_name
+    config.base_url = str(payload.base_url).rstrip("/")
+    config.model_name = payload.model_name
     config.temperature = payload.temperature
     config.max_tokens = payload.max_tokens
     config.is_enabled = payload.is_enabled
@@ -192,7 +202,7 @@ def update_llm_config(payload: LLMConfigUpdateRequest, db: Session = Depends(get
     if payload.clear_api_key:
         config.api_key = None
     elif payload.api_key and payload.api_key.strip():
-        config.api_key = payload.api_key.strip()
+        set_encrypted_api_key(config, payload.api_key.strip())
 
     db.commit()
     db.refresh(config)

@@ -1,6 +1,7 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field, StringConstraints, model_validator
+from typing import Annotated
 
 
 class ThemePalette(BaseModel):
@@ -207,15 +208,21 @@ class PortalAnnouncementUpsertRequest(BaseModel):
 
 class LLMConfigUpdateRequest(BaseModel):
     admin_user_id: int
-    provider_name: str
-    base_url: str
+    provider_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    base_url: AnyHttpUrl
     api_key: str | None = None
     clear_api_key: bool = False
-    model_name: str
+    model_name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
     temperature: float = Field(default=0.4, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, ge=256, le=32768)
     is_enabled: bool = False
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_enabled_state(self):
+        if self.is_enabled and self.clear_api_key:
+            raise ValueError("启用大模型时不能同时清空 API Key。")
+        return self
 
 
 class AgentCard(BaseModel):
