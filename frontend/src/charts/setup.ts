@@ -1,6 +1,7 @@
 import { use } from "echarts/core";
 import { BarChart, LineChart, PieChart } from "echarts/charts";
 import {
+  GraphicComponent,
   GridComponent,
   LegendComponent,
   TitleComponent,
@@ -12,6 +13,7 @@ use([
   BarChart,
   LineChart,
   PieChart,
+  GraphicComponent,
   GridComponent,
   LegendComponent,
   TitleComponent,
